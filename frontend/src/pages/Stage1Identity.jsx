@@ -114,11 +114,7 @@ export default function Stage1Identity() {
       await api.patch("/user/me", { age, city });
       navigate("/audit/family");
     } catch (e) {
-      // Family stage not built yet — Phase 2. For now park on dashboard.
-      toast.message("Phase 2 coming soon", {
-        description: "Stages 2–8 will ship in the next phase. Taking you to your dashboard.",
-      });
-      navigate("/dashboard");
+      toast.error("Couldn't save — try again.");
     } finally {
       setSubmitting(false);
     }

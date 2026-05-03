@@ -8,6 +8,12 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import Stage0Hook from "./pages/Stage0Hook";
 import Stage1Identity from "./pages/Stage1Identity";
+import Stage2Family from "./pages/Stage2Family";
+import Stage3Money from "./pages/Stage3Money";
+import Stage4Policies from "./pages/Stage4Policies";
+import Stage5Lifestyle from "./pages/Stage5Lifestyle";
+import Stage6Audit from "./pages/Stage6Audit";
+import Stage7Recommendations from "./pages/Stage7Recommendations";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
@@ -20,17 +26,67 @@ export default function App() {
       <BrowserRouter>
         <Toaster position="top-center" richColors closeButton />
         <Routes>
-          {/* Public audit flow */}
+          {/* Public hook */}
           <Route path="/" element={<Stage0Hook />} />
+
+          {/* Audit flow */}
           <Route path="/audit/identity" element={<Stage1Identity />} />
+          <Route
+            path="/audit/family"
+            element={
+              <ProtectedRoute>
+                <Stage2Family />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit/money"
+            element={
+              <ProtectedRoute>
+                <Stage3Money />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit/policies"
+            element={
+              <ProtectedRoute>
+                <Stage4Policies />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit/lifestyle"
+            element={
+              <ProtectedRoute>
+                <Stage5Lifestyle />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/audit/report"
+            element={
+              <ProtectedRoute>
+                <Stage6Audit />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Return-visit auth */}
+          {/* Recommendations (Stage 7) */}
+          <Route
+            path="/recommendations"
+            element={
+              <ProtectedRoute>
+                <Stage7Recommendations />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Login + deep link */}
           <Route path="/login" element={<Login />} />
-
-          {/* Deep-link short tokens */}
           <Route path="/r/:token" element={<DeepLinkResolver />} />
 
-          {/* Protected */}
+          {/* Dashboard (Stage 8) */}
           <Route
             path="/dashboard"
             element={

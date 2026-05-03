@@ -23,12 +23,17 @@ from routers.auth_router import router as auth_router  # noqa: E402
 from routers.user_router import router as user_router  # noqa: E402
 from routers.deeplink_router import router as deeplink_router  # noqa: E402
 from routers.admin_router import router as admin_router  # noqa: E402
+from routers.policies_router import router as policies_router  # noqa: E402
+from routers.audit_router import router as audit_router  # noqa: E402
+from routers.recommendations_router import router as recommendations_router  # noqa: E402
+from routers.alerts_router import router as alerts_router  # noqa: E402
+from routers.family_router import router as family_router  # noqa: E402
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 BUILD_TIME = datetime.now(timezone.utc).isoformat()
 GIT_SHA = os.environ.get("GIT_SHA", "dev")
+USE_MOCKS = os.environ.get("USE_MOCKS", "true").lower() == "true"
 
-# --- Mongo ---
 mongo_url = os.environ["MONGO_URL"]
 mongo_client = AsyncIOMotorClient(mongo_url)
 db = mongo_client[os.environ["DB_NAME"]]
@@ -36,7 +41,6 @@ db = mongo_client[os.environ["DB_NAME"]]
 app = FastAPI(title="Kavach API", version=VERSION)
 app.state.db = db
 
-# --- CORS ---
 origins = os.environ.get("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -46,13 +50,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- API router ---
 api_router = APIRouter(prefix="/api")
 
 
 @api_router.get("/")
 async def root():
-    return {"success": True, "data": {"service": "kavach", "status": "ok"}, "error": None}
+    return {"success": True, "data": {"service": "kavach", "status": "ok", "use_mocks": USE_MOCKS}, "error": None}
 
 
 @api_router.get("/health")
@@ -65,6 +68,7 @@ async def health():
     return {
         "status": "ok" if db_status == "connected" else "degraded",
         "db": db_status,
+        "use_mocks": USE_MOCKS,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -78,22 +82,26 @@ api_router.include_router(auth_router)
 api_router.include_router(user_router)
 api_router.include_router(deeplink_router)
 api_router.include_router(admin_router)
+api_router.include_router(policies_router)
+api_router.include_router(audit_router)
+api_router.include_router(recommendations_router)
+api_router.include_router(alerts_router)
+api_router.include_router(family_router)
 app.include_router(api_router)
 
 
-# --- Startup: ensure indexes ---
 @app.on_event("startup")
 async def ensure_indexes():
     await db.users.create_index("mobile", unique=True)
     await db.otp_attempts.create_index([("mobile", 1), ("created_at", -1)])
-    # TTL: auto-delete OTP attempts 24h after creation
-    try:
-        await db.otp_attempts.create_index("created_at_dt", expireAfterSeconds=86400)
-    except Exception:
-        pass
     await db.sessions.create_index("user_id")
     await db.sessions.create_index("expires_at")
     await db.alerts.create_index("short_token", unique=True, sparse=True)
+    await db.policies.create_index("user_id")
+    await db.audits.create_index([("user_id", 1), ("generated_at", -1)])
+    await db.parse_attempts.create_index([("user_id", 1), ("created_at", -1)])
+    await db.family_members.create_index("user_id")
+    await db.early_access.create_index("user_id")
 
 
 @app.on_event("shutdown")
@@ -106,3 +114,4 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("kavach")
+logger.info("Kavach v%s starting · USE_MOCKS=%s", VERSION, USE_MOCKS)
