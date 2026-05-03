@@ -55,7 +55,7 @@ export default function DeepLinkResolver() {
           This alert link is no longer valid or has already been used. Sign in to view your dashboard.
         </p>
         <Link
-          to="/dashboard"
+          to="/"
           data-testid="deeplink-back-cta"
           className="mt-8 inline-flex h-12 px-6 items-center rounded-xl bg-[#0B2545] text-white font-semibold"
         >
