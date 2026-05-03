@@ -109,17 +109,25 @@ async def verify_otp_endpoint(body: VerifyOTPInput, request: Request, response: 
     otp = body.otp.strip()
 
     if await _is_mobile_locked(db, mobile):
-        _fail("locked_try_later", 429)
+        _fail("locked_try_later", LOCKED_STATUS)
 
-    # Latest unexpired OTP for this mobile (consumed or not — replay check happens after verify)
+    # Latest OTP record for this mobile, regardless of expiry (replay check first).
     record = await db.otp_attempts.find_one(
-        {"mobile": mobile, "expires_at": {"$gt": _iso(_utcnow())}},
+        {"mobile": mobile},
         sort=[("created_at", -1)],
     )
     if not record:
         _fail("otp_expired_or_missing", 400)
 
-    # Verify
+    # 1) Replay-attack guard: any already-consumed OTP is permanently rejected.
+    if record.get("consumed"):
+        _fail("otp_already_used", 400)
+
+    # 2) Expiry guard.
+    if record["expires_at"] <= _iso(_utcnow()):
+        _fail("otp_expired_or_missing", 400)
+
+    # 3) Verify the OTP.
     if not verify_otp(otp, record["otp_hash"]):
         new_count = int(record.get("attempts_count", 0)) + 1
         update = {"$set": {"attempts_count": new_count}}
@@ -129,11 +137,7 @@ async def verify_otp_endpoint(body: VerifyOTPInput, request: Request, response: 
         await db.otp_attempts.update_one({"_id": record["_id"]}, update)
         _fail("locked_try_later" if locked else "invalid_otp", LOCKED_STATUS if locked else 401)
 
-    # Replay-attack guard: reject already-consumed OTPs
-    if record.get("consumed"):
-        _fail("otp_already_used", 400)
-
-    # Mark this OTP as consumed and expire any older ones for this mobile
+    # Mark this OTP as consumed and expire any older un-consumed ones for this mobile.
     await db.otp_attempts.update_one(
         {"_id": record["_id"]},
         {"$set": {"consumed": True, "consumed_at": _iso(_utcnow())}},
