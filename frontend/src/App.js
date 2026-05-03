@@ -1,54 +1,47 @@
-import { useEffect } from "react";
+import React from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import { Toaster } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import { AuthProvider } from "./lib/auth";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+import Stage0Hook from "./pages/Stage0Hook";
+import Stage1Identity from "./pages/Stage1Identity";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import DeepLinkResolver from "./pages/DeepLinkResolver";
+import NotFound from "./pages/NotFound";
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+export default function App() {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
-
-function App() {
-  return (
-    <div className="App">
+    <AuthProvider>
       <BrowserRouter>
+        <Toaster position="top-center" richColors closeButton />
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
+          {/* Public audit flow */}
+          <Route path="/" element={<Stage0Hook />} />
+          <Route path="/audit/identity" element={<Stage1Identity />} />
+
+          {/* Return-visit auth */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Deep-link short tokens */}
+          <Route path="/r/:token" element={<DeepLinkResolver />} />
+
+          {/* Protected */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
-    </div>
+    </AuthProvider>
   );
 }
-
-export default App;
