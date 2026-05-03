@@ -15,11 +15,14 @@ import { useAuth } from "../lib/auth";
  * Do NOT use on Stage 0 ("/"). The landing hero is friction-zero by design.
  */
 export default function Header() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   const homeHref = user ? "/dashboard" : "/";
   const initial = user?.mobile ? user.mobile.charAt(0) : "";
+  // Render the avatar slot only once auth state has resolved — prevents flicker
+  // (especially on Stage 0 where most visitors will be logged out).
+  const showAvatar = !loading && !!user;
 
   return (
     <header
@@ -66,7 +69,7 @@ export default function Header() {
         </Link>
 
         {/* Right — auth-aware avatar */}
-        {user ? (
+        {showAvatar ? (
           <button
             type="button"
             data-testid="header-avatar"

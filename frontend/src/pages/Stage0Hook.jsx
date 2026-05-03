@@ -1,27 +1,22 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ShieldCheck, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import Header from "../components/Header";
 
 export default function Stage0Hook() {
   const navigate = useNavigate();
   return (
     <div className="min-h-[100dvh] flex flex-col bg-gradient-to-br from-[#0B2545]/[0.04] via-[#F8FAFC] to-[#13A8A8]/[0.06]">
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-3xl mx-auto w-full">
+      <Header />
+
+      <main className="flex-1 flex flex-col items-center justify-center px-6 pt-32 pb-16 max-w-3xl mx-auto w-full">
         <motion.div
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 1, 0.5, 1] }}
           className="w-full"
         >
-          <div
-            data-testid="brand-mark"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-[#E1E5EB] text-xs font-semibold tracking-widest uppercase text-[#13A8A8] mb-10"
-          >
-            <ShieldCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
-            Kavachly
-          </div>
-
           <h1
             data-testid="hero-headline"
             className="font-heading text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-[#0B2545] leading-[1.02]"
