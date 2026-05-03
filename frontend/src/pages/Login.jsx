@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Phone, ShieldCheck } from "lucide-react";
+import { Phone } from "lucide-react";
 import { toast } from "sonner";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "../components/ui/input-otp";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import Header from "../components/Header";
 import api from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -56,12 +57,7 @@ export default function Login() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-[#F8FAFC]">
-      <header className="px-6 py-5">
-        <Link to="/" data-testid="login-brand" className="inline-flex items-center gap-2 text-[#0B2545] font-semibold">
-          <ShieldCheck className="w-5 h-5 text-[#13A8A8]" strokeWidth={2.5} />
-          Kavach
-        </Link>
-      </header>
+      <Header />
 
       <main className="flex-1 px-6 flex items-center">
         <div className="max-w-md w-full mx-auto">
@@ -71,7 +67,7 @@ export default function Login() {
             transition={{ duration: 0.4, ease: [0.25, 1, 0.5, 1] }}
           >
             <h1 className="font-heading text-3xl sm:text-4xl font-bold tracking-tight text-[#0B2545]">
-              Welcome back to Kavach.
+              Welcome back to Kavachly.
             </h1>
             <p className="mt-3 text-[#475569]">
               Enter your mobile to continue. We'll send a code — no passwords.

@@ -1,0 +1,10 @@
+{
+  "short_name": "Kavachly",
+  "name": "Kavachly — Insurance, audited.",
+  "description": "AI-powered insurance audit. 60-second clarity on what your policy actually covers.",
+  "icons": [],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#0B2545",
+  "background_color": "#F8FAFC"
+}

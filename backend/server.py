@@ -1,4 +1,4 @@
-"""Kavach main app — composition root."""
+"""Kavachly main app — composition root."""
 import logging
 import os
 import sys
@@ -38,7 +38,11 @@ mongo_url = os.environ["MONGO_URL"]
 mongo_client = AsyncIOMotorClient(mongo_url)
 db = mongo_client[os.environ["DB_NAME"]]
 
-app = FastAPI(title="Kavach API", version=VERSION)
+app = FastAPI(
+    title="Kavachly",
+    description="AI-powered insurance audit platform",
+    version=VERSION,
+)
 app.state.db = db
 
 origins = os.environ.get("CORS_ORIGINS", "*").split(",")
@@ -114,4 +118,4 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("kavach")
-logger.info("Kavach v%s starting · USE_MOCKS=%s", VERSION, USE_MOCKS)
+logger.info("Kavachly v%s starting · USE_MOCKS=%s", VERSION, USE_MOCKS)

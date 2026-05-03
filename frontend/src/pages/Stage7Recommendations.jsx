@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle2, ChevronLeft, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "../components/ui/input";
+import Header from "../components/Header";
 import { formatINR } from "../lib/currency";
 import api from "../lib/api";
 
@@ -57,14 +58,15 @@ export default function Stage7Recommendations() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC] pb-16">
-      <header className="border-b border-[#E1E5EB] bg-white">
+      <Header />
+      <div className="border-b border-[#E1E5EB] bg-white">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="text-[#475569]" data-testid="recs-back">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <span className="font-heading font-semibold text-[#0B2545]">Recommendations</span>
         </div>
-      </header>
+      </div>
 
       <main className="max-w-3xl mx-auto px-6 py-8" data-testid="recs-root">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -132,7 +134,7 @@ export default function Stage7Recommendations() {
                 </div>
 
                 <p className="mt-4 text-[11px] text-[#475569]">
-                  We earn {formatINR(opt.our_commission)} if you buy through Kavach. You can also buy
+                  We earn {formatINR(opt.our_commission)} if you buy through Kavachly. You can also buy
                   direct from{" "}
                   <a
                     href={opt.direct_link}
@@ -179,7 +181,7 @@ export default function Stage7Recommendations() {
                 <h3 className="font-heading text-2xl font-bold text-[#0B2545]">Coming soon — Phase 2</h3>
                 <p className="mt-3 text-sm text-[#475569] leading-relaxed">
                   Our 1-tap quote engine is launching shortly. Drop your email and we'll get back the
-                  moment {bought.insurer} is live on Kavach.
+                  moment {bought.insurer} is live on Kavachly.
                 </p>
                 <div className="mt-5 flex gap-2">
                   <Input

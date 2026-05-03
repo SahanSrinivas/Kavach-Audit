@@ -7,7 +7,7 @@ export default function ProgressBar({ stage = 1 }) {
   return (
     <div
       data-testid="audit-progress-bar"
-      className="fixed top-0 inset-x-0 z-40 flex items-center justify-center gap-3 py-4 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-[#E1E5EB]/60"
+      className="fixed top-14 inset-x-0 z-40 flex items-center justify-center gap-3 py-4 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-[#E1E5EB]/60"
     >
       {dots.map((d) => {
         const state = d < stage ? "completed" : d === stage ? "active" : "inactive";

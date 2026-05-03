@@ -1,4 +1,4 @@
-"""JWT + session helpers for Kavach."""
+"""JWT + session helpers for Kavachly."""
 import os
 import hashlib
 import secrets

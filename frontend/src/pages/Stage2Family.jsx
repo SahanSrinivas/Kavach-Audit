@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { User, Users, Baby, HeartPulse, Home as HomeIcon } from "lucide-react";
 import ProgressBar from "../components/ProgressBar";
+import Header from "../components/Header";
 import BottomCTA from "../components/BottomCTA";
 import Chip from "../components/Chip";
 import KvSlider from "../components/KvSlider";
@@ -63,8 +64,9 @@ export default function Stage2Family() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
+      <Header />
       <ProgressBar stage={2} />
-      <main className="pt-20 pb-40 md:pb-24 px-6 max-w-xl mx-auto">
+      <main className="pt-32 pb-40 md:pb-24 px-6 max-w-xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

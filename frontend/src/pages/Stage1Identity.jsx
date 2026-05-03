@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { MapPin, Minus, Plus, Phone } from "lucide-react";
 import { toast } from "sonner";
 import ProgressBar from "../components/ProgressBar";
+import Header from "../components/Header";
 import BottomCTA from "../components/BottomCTA";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "../components/ui/input-otp";
 import { Input } from "../components/ui/input";
@@ -126,9 +127,10 @@ export default function Stage1Identity() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
+      <Header />
       <ProgressBar stage={1} />
 
-      <main className="pt-20 pb-40 md:pb-24 px-6 max-w-xl mx-auto">
+      <main className="pt-32 pb-40 md:pb-24 px-6 max-w-xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

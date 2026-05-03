@@ -12,7 +12,7 @@ export default function NotFound() {
         data-testid="notfound-home-link"
         className="mt-8 inline-flex h-12 px-6 items-center rounded-xl bg-[#0B2545] text-white font-semibold"
       >
-        Back to Kavach
+        Back to Kavachly
       </Link>
     </div>
   );

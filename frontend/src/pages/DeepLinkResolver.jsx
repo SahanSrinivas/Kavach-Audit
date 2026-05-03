@@ -59,7 +59,7 @@ export default function DeepLinkResolver() {
           data-testid="deeplink-back-cta"
           className="mt-8 inline-flex h-12 px-6 items-center rounded-xl bg-[#0B2545] text-white font-semibold"
         >
-          Go to Kavach
+          Go to Kavachly
         </Link>
       </motion.div>
     </div>

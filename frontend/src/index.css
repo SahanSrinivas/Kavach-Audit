@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 :root {
-    /* Kavach palette */
+    /* Kavachly palette */
     --kv-navy: #0b2545;
     --kv-teal: #13a8a8;
     --kv-bg: #f8fafc;
@@ -16,7 +16,7 @@
     --kv-success: #0f7b4f;
     --kv-alert: #b22222;
 
-    /* shadcn semantics mapped to Kavach */
+    /* shadcn semantics mapped to Kavachly */
     --background: 210 40% 98%;
     --foreground: 217 69% 16%;
     --card: 0 0% 100%;

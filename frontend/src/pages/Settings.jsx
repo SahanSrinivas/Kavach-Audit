@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ChevronLeft, LogOut, Smartphone, ShieldCheck } from "lucide-react";
+import { ChevronLeft, LogOut, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
+import Header from "../components/Header";
 import api from "../lib/api";
 import { useAuth } from "../lib/auth";
 
@@ -49,15 +50,16 @@ export default function Settings() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
-      <header className="border-b border-[#E1E5EB] bg-white">
+      <Header />
+
+      <div className="border-b border-[#E1E5EB] bg-white">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
           <Link to="/dashboard" data-testid="settings-back" className="text-[#475569] hover:text-[#0B2545]">
             <ChevronLeft className="w-5 h-5" />
           </Link>
-          <ShieldCheck className="w-5 h-5 text-[#13A8A8]" />
           <h1 className="font-heading font-semibold text-[#0B2545]">Settings</h1>
         </div>
-      </header>
+      </div>
 
       <main className="max-w-3xl mx-auto px-6 py-10" data-testid="settings-root">
         <motion.section

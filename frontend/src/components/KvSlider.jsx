@@ -1,7 +1,7 @@
 import React from "react";
 import { Slider } from "./ui/slider";
 
-// Wrapper around shadcn Slider with Kavach styling and live label.
+// Wrapper around shadcn Slider with Kavachly styling and live label.
 export default function KvSlider({
   value,
   onChange,

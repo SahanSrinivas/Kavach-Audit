@@ -1,7 +1,7 @@
-# Kavach — Product Requirements Doc
+# Kavachly — Product Requirements Doc
 
 ## Original Problem
-AI-powered insurance audit platform for India ("Kavach"). Brand promise: "Find out if your insurance is actually protecting you." Commission-neutral, AI-native, 60-second audit. 8 stages from landing → identity → family → money → policies (with PDF parsing) → lifestyle → audit report → recommendations → dashboard.
+AI-powered insurance audit platform for India ("Kavachly"). Brand promise: "Find out if your insurance is actually protecting you." Commission-neutral, AI-native, 60-second audit. 8 stages from landing → identity → family → money → policies (with PDF parsing) → lifestyle → audit report → recommendations → dashboard.
 
 ## Architecture
 - **Frontend**: React 19, Tailwind, shadcn/ui, Lucide, Framer Motion, html2canvas, react-router 7. Mobile-first PWA-ready.

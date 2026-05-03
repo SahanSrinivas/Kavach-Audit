@@ -2,10 +2,8 @@ import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ShieldCheck,
   LogOut,
   Plus,
-  Settings as SettingsIcon,
   Bell,
   ChevronRight,
   AlertTriangle,
@@ -17,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../components/ui/button";
+import Header from "../components/Header";
 import { useAuth } from "../lib/auth";
 import { formatINR } from "../lib/currency";
 import api from "../lib/api";
@@ -66,25 +65,16 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
-      <header className="border-b border-[#E1E5EB] bg-white sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link to="/dashboard" className="inline-flex items-center gap-2 text-[#0B2545] font-semibold">
-            <ShieldCheck className="w-5 h-5 text-[#13A8A8]" strokeWidth={2.5} />
-            Kavach
-          </Link>
-          <div className="flex items-center gap-2">
-            <span data-testid="dashboard-user-mobile" className="hidden sm:inline text-sm text-[#475569]">
+      <Header />
+
+      <main className="max-w-5xl mx-auto px-6 py-8" data-testid="dashboard-root">
+        {!hasAudit ? <EmptyState navigate={navigate} /> : null}
+
+        {hasAudit && (
+          <div className="flex items-center justify-end mb-6 gap-2 text-sm">
+            <span data-testid="dashboard-user-mobile" className="text-[#475569]">
               +91 {user?.mobile}
             </span>
-            <Button
-              data-testid="dashboard-settings-link"
-              variant="ghost"
-              onClick={() => navigate("/dashboard/settings")}
-              className="h-9 px-3 text-[#475569] hover:text-[#0B2545]"
-            >
-              <SettingsIcon className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Settings</span>
-            </Button>
             <Button
               data-testid="dashboard-logout-button"
               variant="ghost"
@@ -92,17 +82,13 @@ export default function Dashboard() {
                 await logout();
                 navigate("/login");
               }}
-              className="h-9 px-3 text-[#475569] hover:text-[#0B2545]"
+              className="h-8 px-2 text-[#475569] hover:text-[#0B2545]"
             >
-              <LogOut className="w-4 h-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">Logout</span>
+              <LogOut className="w-4 h-4 mr-1" />
+              Logout
             </Button>
           </div>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-8" data-testid="dashboard-root">
-        {!hasAudit ? <EmptyState navigate={navigate} /> : null}
+        )}
 
         {hasAudit && loading && (
           <div className="flex items-center justify-center py-24">

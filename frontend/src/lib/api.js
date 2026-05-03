@@ -35,7 +35,7 @@ function notifyNetworkError(detail) {
   // Lazy import to avoid SSR/test issues
   import("sonner")
     .then(({ toast }) => {
-      toast.error("Couldn't reach Kavach servers", {
+      toast.error("Couldn't reach Kavachly servers", {
         description: detail || "Please check your connection and retry.",
       });
     })

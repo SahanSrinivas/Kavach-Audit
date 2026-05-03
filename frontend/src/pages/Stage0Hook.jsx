@@ -19,7 +19,7 @@ export default function Stage0Hook() {
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-[#E1E5EB] text-xs font-semibold tracking-widest uppercase text-[#13A8A8] mb-10"
           >
             <ShieldCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
-            Kavach
+            Kavachly
           </div>
 
           <h1

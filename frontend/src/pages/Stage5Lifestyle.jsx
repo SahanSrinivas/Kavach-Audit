@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import ProgressBar from "../components/ProgressBar";
+import Header from "../components/Header";
 import BottomCTA from "../components/BottomCTA";
 import api from "../lib/api";
 
@@ -52,8 +53,9 @@ export default function Stage5Lifestyle() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
+      <Header />
       <ProgressBar stage={5} />
-      <main className="pt-20 pb-40 md:pb-24 px-6 max-w-xl mx-auto">
+      <main className="pt-32 pb-40 md:pb-24 px-6 max-w-xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#13A8A8] mb-3">
             Step 5 of 6 · 15 seconds

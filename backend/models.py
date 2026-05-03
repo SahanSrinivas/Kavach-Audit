@@ -1,4 +1,4 @@
-"""Pydantic models for Kavach."""
+"""Pydantic models for Kavachly."""
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime, timezone

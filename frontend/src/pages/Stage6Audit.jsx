@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Share2, Download, ShieldCheck, ChevronRight, RefreshCw } from "lucide-react";
+import { Share2, ChevronRight, RefreshCw } from "lucide-react";
 import html2canvas from "html2canvas";
 import { toast } from "sonner";
 import AuditScoreCard from "../components/AuditScoreCard";
 import FindingCard from "../components/FindingCard";
+import Header from "../components/Header";
 import { formatINR } from "../lib/currency";
 import api from "../lib/api";
 
@@ -52,18 +53,18 @@ export default function Stage6Audit() {
         scale: 2,
       });
       const blob = await new Promise((res) => canvas.toBlob(res, "image/png"));
-      const file = new File([blob], "kavach-audit.png", { type: "image/png" });
+      const file = new File([blob], "kavachly-audit.png", { type: "image/png" });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: "My Kavach Audit",
-          text: "Just audited my insurance with Kavach.",
+          title: "My Kavachly Audit",
+          text: "Just audited my insurance with Kavachly.",
           files: [file],
         });
       } else {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "kavach-audit.png";
+        a.download = "kavachly-audit.png";
         a.click();
         URL.revokeObjectURL(url);
         toast.success("Audit card downloaded");
@@ -86,21 +87,16 @@ export default function Stage6Audit() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC] pb-16">
-      <header className="sticky top-0 z-20 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-[#E1E5EB]/60">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="inline-flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-[#13A8A8]" strokeWidth={2.5} />
-            <span className="font-heading font-semibold text-[#0B2545]">Your Audit</span>
-          </div>
-          <button
-            data-testid="audit-go-dashboard"
-            onClick={() => navigate("/dashboard")}
-            className="text-sm font-semibold text-[#475569] hover:text-[#0B2545] inline-flex items-center gap-1"
-          >
-            Dashboard <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
+      <Header />
+      <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-end">
+        <button
+          data-testid="audit-go-dashboard"
+          onClick={() => navigate("/dashboard")}
+          className="text-sm font-semibold text-[#475569] hover:text-[#0B2545] inline-flex items-center gap-1"
+        >
+          Dashboard <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
 
       <main className="max-w-3xl mx-auto px-6 py-8" data-testid="audit-root">
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
@@ -147,7 +143,7 @@ export default function Stage6Audit() {
             />
           </div>
           <p className="mt-4 text-[10px] tracking-widest uppercase text-[#475569] text-center font-semibold">
-            kavach · audited in 60 seconds
+            kavachly · audited in 60 seconds
           </p>
         </div>
 

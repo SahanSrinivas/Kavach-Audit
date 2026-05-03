@@ -221,7 +221,7 @@ def make_mock_alerts(user_id: str) -> list[dict]:
             "type": "reaudit",
             "severity": "info",
             "headline": "Annual re-audit available — re-run in 30 seconds",
-            "body": "It's been a year since your last Kavach audit. Markets shifted — let's see what's changed.",
+            "body": "It's been a year since your last Kavachly audit. Markets shifted — let's see what's changed.",
             "cta_label": "Re-run audit",
             "target_url": "/audit/identity",
             "short_token": "reaud1",

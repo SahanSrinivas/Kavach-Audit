@@ -13,6 +13,7 @@ import {
   IndianRupee,
 } from "lucide-react";
 import ProgressBar from "../components/ProgressBar";
+import Header from "../components/Header";
 import BottomCTA from "../components/BottomCTA";
 import KvSlider from "../components/KvSlider";
 import { formatINR } from "../lib/currency";
@@ -209,8 +210,9 @@ export default function Stage4Policies() {
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
+      <Header />
       <ProgressBar stage={4} />
-      <main className="pt-20 pb-40 md:pb-24 px-6 max-w-2xl mx-auto">
+      <main className="pt-32 pb-40 md:pb-24 px-6 max-w-2xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#13A8A8] mb-3">
             Step 4 of 6 · 30 seconds
