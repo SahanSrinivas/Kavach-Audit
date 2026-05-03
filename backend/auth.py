@@ -47,10 +47,16 @@ def device_fingerprint(request: Request) -> str:
 def set_auth_cookies(response: Response, access: str, refresh: str) -> str:
     """Sets httpOnly access/refresh cookies and a readable CSRF cookie.
 
+    SameSite=None is required so cookies flow inside cross-site iframes (Emergent
+    preview, embedded demos, etc). We're already protected from CSRF by the
+    double-submit cookie pattern (see verify_csrf), so SameSite=Lax buys nothing
+    extra and breaks iframe deployments. `Secure` is mandatory whenever
+    SameSite=None is set.
+
     Returns the csrf token (also set as cookie) for the client to echo back.
     """
     csrf = secrets.token_urlsafe(24)
-    common = dict(httponly=True, secure=True, samesite="lax", path="/")
+    common = dict(httponly=True, secure=True, samesite="none", path="/")
     response.set_cookie(ACCESS_COOKIE, access, max_age=ACCESS_EXP_HOURS * 3600, **common)
     response.set_cookie(REFRESH_COOKIE, refresh, max_age=REFRESH_EXP_DAYS * 86400, **common)
     # CSRF token is NOT httpOnly so JS can read and echo it.
@@ -60,7 +66,7 @@ def set_auth_cookies(response: Response, access: str, refresh: str) -> str:
         max_age=ACCESS_EXP_HOURS * 3600,
         httponly=False,
         secure=True,
-        samesite="lax",
+        samesite="none",
         path="/",
     )
     return csrf
