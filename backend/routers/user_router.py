@@ -1,7 +1,7 @@
 """User profile routes."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from auth import get_current_user
+from auth import get_current_user, verify_csrf
 from models import UserProfileUpdate
 
 router = APIRouter(prefix="/user", tags=["user"])
@@ -41,7 +41,7 @@ async def get_me(request: Request, current=Depends(get_current_user)):
     return _ok({"user": user})
 
 
-@router.patch("/me")
+@router.patch("/me", dependencies=[Depends(verify_csrf)])
 async def update_me(body: UserProfileUpdate, request: Request, current=Depends(get_current_user)):
     db = request.app.state.db
     update = {k: v for k, v in body.model_dump(exclude_none=True).items()}

@@ -17,6 +17,7 @@ from auth import (
     get_current_user,
     make_access_token,
     set_auth_cookies,
+    verify_csrf,
 )
 from otp_service import (
     generate_otp,
@@ -52,6 +53,8 @@ def _iso(dt: datetime) -> str:
 MAX_OTP_PER_HOUR = 3
 MAX_VERIFY_ATTEMPTS = 5
 VERIFY_LOCK_MIN = 60  # minutes
+LOCKED_STATUS = 423  # HTTP 423 Locked
+RATE_LIMIT_STATUS = 429
 
 
 async def _is_mobile_locked(db, mobile: str) -> bool:
@@ -76,10 +79,10 @@ async def request_otp(body: RequestOTPInput, request: Request):
         _fail("invalid_mobile")
 
     if await _is_mobile_locked(db, mobile):
-        _fail("locked_try_later", 429)
+        _fail("locked_try_later", LOCKED_STATUS)
 
     if await _count_requests_last_hour(db, mobile) >= MAX_OTP_PER_HOUR:
-        _fail("rate_limited", 429)
+        _fail("rate_limited", RATE_LIMIT_STATUS)
 
     code = generate_otp()
     otp_hash = hash_otp(code)
@@ -108,7 +111,7 @@ async def verify_otp_endpoint(body: VerifyOTPInput, request: Request, response: 
     if await _is_mobile_locked(db, mobile):
         _fail("locked_try_later", 429)
 
-    # Latest unexpired OTP for this mobile
+    # Latest unexpired OTP for this mobile (consumed or not — replay check happens after verify)
     record = await db.otp_attempts.find_one(
         {"mobile": mobile, "expires_at": {"$gt": _iso(_utcnow())}},
         sort=[("created_at", -1)],
@@ -120,14 +123,24 @@ async def verify_otp_endpoint(body: VerifyOTPInput, request: Request, response: 
     if not verify_otp(otp, record["otp_hash"]):
         new_count = int(record.get("attempts_count", 0)) + 1
         update = {"$set": {"attempts_count": new_count}}
-        if new_count >= MAX_VERIFY_ATTEMPTS:
+        locked = new_count >= MAX_VERIFY_ATTEMPTS
+        if locked:
             update["$set"]["locked_until"] = _iso(_utcnow() + timedelta(minutes=VERIFY_LOCK_MIN))
         await db.otp_attempts.update_one({"_id": record["_id"]}, update)
-        _fail("invalid_otp", 400)
+        _fail("locked_try_later" if locked else "invalid_otp", LOCKED_STATUS if locked else 401)
 
-    # Invalidate this OTP (and older ones for this mobile) by expiring them
+    # Replay-attack guard: reject already-consumed OTPs
+    if record.get("consumed"):
+        _fail("otp_already_used", 400)
+
+    # Mark this OTP as consumed and expire any older ones for this mobile
+    await db.otp_attempts.update_one(
+        {"_id": record["_id"]},
+        {"$set": {"consumed": True, "consumed_at": _iso(_utcnow())}},
+    )
     await db.otp_attempts.update_many(
-        {"mobile": mobile}, {"$set": {"expires_at": _iso(_utcnow() - timedelta(seconds=1))}}
+        {"mobile": mobile, "_id": {"$ne": record["_id"]}, "consumed": {"$ne": True}},
+        {"$set": {"expires_at": _iso(_utcnow() - timedelta(seconds=1))}},
     )
 
     # User upsert
@@ -199,7 +212,7 @@ async def refresh_token_endpoint(
     return _ok({"refreshed": True})
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(verify_csrf)])
 async def logout(
     request: Request,
     response: Response,
@@ -213,7 +226,7 @@ async def logout(
     return _ok({"logged_out": True})
 
 
-@router.post("/logout-all")
+@router.post("/logout-all", dependencies=[Depends(verify_csrf)])
 async def logout_all(
     request: Request,
     response: Response,
@@ -249,7 +262,7 @@ async def list_sessions(request: Request, current=Depends(get_current_user),
     return _ok({"sessions": out})
 
 
-@router.delete("/sessions/{session_id}")
+@router.delete("/sessions/{session_id}", dependencies=[Depends(verify_csrf)])
 async def revoke_session(session_id: str, request: Request, current=Depends(get_current_user)):
     db = request.app.state.db
     res = await db.sessions.delete_one({"_id": session_id, "user_id": current["user_id"]})

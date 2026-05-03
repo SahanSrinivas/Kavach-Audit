@@ -24,6 +24,14 @@ export default function Dashboard() {
               +91 {user?.mobile}
             </span>
             <Button
+              data-testid="dashboard-settings-link"
+              variant="ghost"
+              onClick={() => navigate("/dashboard/settings")}
+              className="h-9 px-3 text-[#475569] hover:text-[#0B2545]"
+            >
+              Settings
+            </Button>
+            <Button
               data-testid="dashboard-logout-button"
               variant="ghost"
               onClick={async () => {

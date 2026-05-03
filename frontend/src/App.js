@@ -10,6 +10,7 @@ import Stage0Hook from "./pages/Stage0Hook";
 import Stage1Identity from "./pages/Stage1Identity";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 import DeepLinkResolver from "./pages/DeepLinkResolver";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
               </ProtectedRoute>
             }
           />

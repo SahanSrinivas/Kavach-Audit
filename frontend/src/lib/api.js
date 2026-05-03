@@ -24,15 +24,40 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Auto-refresh on expired access token
+// Auto-refresh on expired access token + global network-error toast
 let refreshing = null;
+let networkErrorShown = false;
+
+function notifyNetworkError(detail) {
+  if (networkErrorShown) return;
+  networkErrorShown = true;
+  setTimeout(() => (networkErrorShown = false), 4000);
+  // Lazy import to avoid SSR/test issues
+  import("sonner")
+    .then(({ toast }) => {
+      toast.error("Couldn't reach Kavach servers", {
+        description: detail || "Please check your connection and retry.",
+      });
+    })
+    .catch(() => {});
+}
 
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config || {};
     const status = err.response?.status;
-    const detail = err.response?.data?.detail;
+
+    // Network/CORS/timeout — no response object
+    if (!err.response) {
+      notifyNetworkError();
+      return Promise.reject(err);
+    }
+
+    // 5xx — backend is up but unhappy
+    if (status >= 500 && status <= 599) {
+      notifyNetworkError("Server is having a moment. Please retry.");
+    }
 
     const isAuthEndpoint =
       original.url?.includes("/auth/refresh") ||

@@ -90,7 +90,18 @@ export default function Login() {
                   maxLength={10}
                   placeholder="10-digit number"
                   value={mobile}
-                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(e) => {
+                    let v = e.target.value.replace(/\D/g, "");
+                    if (v.length > 10 && v.startsWith("91")) v = v.slice(2);
+                    setMobile(v.slice(0, 10));
+                  }}
+                  onPaste={(e) => {
+                    const pasted = (e.clipboardData || window.clipboardData).getData("text") || "";
+                    let v = pasted.replace(/\D/g, "");
+                    if (v.startsWith("91") && v.length > 10) v = v.slice(2);
+                    setMobile(v.slice(0, 10));
+                    e.preventDefault();
+                  }}
                   disabled={otpSent}
                   className="flex-1 h-12 text-base border-[#E1E5EB] focus-visible:ring-[#13A8A8] bg-white"
                 />
