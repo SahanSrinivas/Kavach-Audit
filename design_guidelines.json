@@ -1,0 +1,138 @@
+{
+  "theme": "Light",
+  "archetype": "Swiss & High-Contrast (Fintech Authority Variant)",
+  "brand_voice": "Direct, calm, anti-establishment, never pushy",
+  "colors": {
+    "primary": "#0B2545",
+    "accent": "#13A8A8",
+    "background": "#F8FAFC",
+    "surface": "#FFFFFF",
+    "soft_grey": "#E1E5EB",
+    "success": "#0F7B4F",
+    "alert": "#B22222",
+    "text_primary": "#0B2545",
+    "text_secondary": "#475569"
+  },
+  "typography": {
+    "font_family_heading": "Cabinet Grotesk, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl font-black tracking-tighter text-[#0B2545]",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-[#0B2545]",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight text-[#0B2545]",
+      "h4": "text-lg sm:text-xl font-medium text-[#0B2545]",
+      "body": "text-base font-normal leading-relaxed text-[#475569]",
+      "small": "text-sm font-medium text-[#475569]",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-[#13A8A8]"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Spacious, minimal, fintech-grade UX (Cred, Zerodha Kite). Generous white space. Progressive disclosure.",
+    "container_padding": "p-6 md:p-12",
+    "gap": "gap-6 md:gap-8",
+    "border_radius": "rounded-xl",
+    "shadows": {
+      "soft": "shadow-[0_8px_30px_rgb(11,37,69,0.08)]",
+      "card": "shadow-[0_4px_20px_rgb(11,37,69,0.05)]"
+    }
+  },
+  "animation_specs": {
+    "library": "framer-motion",
+    "philosophy": "Subtle fade-ins and slide transitions only, no bouncy effects.",
+    "transition": {
+      "duration": 0.4,
+      "ease": [0.25, 1, 0.5, 1],
+      "type": "tween"
+    },
+    "fade_in": {
+      "initial": { "opacity": 0 },
+      "animate": { "opacity": 1 }
+    },
+    "slide_up": {
+      "initial": { "opacity": 0, "y": 20 },
+      "animate": { "opacity": 1, "y": 0 }
+    }
+  },
+  "components": {
+    "progress_bar": {
+      "description": "Sticky progress bar across stages 1-6 with 6 dots.",
+      "layout": "flex items-center justify-center gap-3 py-4 sticky top-0 z-50 bg-[#F8FAFC]/90 backdrop-blur-md border-b border-[#E1E5EB]/50",
+      "dot_active": "w-2.5 h-2.5 rounded-full bg-[#0B2545] transition-colors duration-300",
+      "dot_inactive": "w-2.5 h-2.5 rounded-full bg-[#E1E5EB] transition-colors duration-300",
+      "dot_completed": "w-2.5 h-2.5 rounded-full bg-[#13A8A8] transition-colors duration-300"
+    },
+    "bottom_anchored_cta": {
+      "layout": "fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC] to-transparent z-40 md:relative md:bg-transparent md:p-0 md:mt-8 pb-8 md:pb-0"
+    },
+    "tappable_chip": {
+      "description": "Used instead of dropdowns or text inputs.",
+      "base": "px-5 py-3 rounded-xl border-2 transition-all cursor-pointer text-center font-medium w-full flex items-center justify-center",
+      "active": "border-[#0B2545] bg-[#0B2545]/5 text-[#0B2545] shadow-sm",
+      "inactive": "border-[#E1E5EB] bg-white text-[#475569] hover:border-[#13A8A8]/30 hover:bg-[#F8FAFC]"
+    },
+    "segmented_control": {
+      "layout": "flex bg-[#E1E5EB]/40 p-1 rounded-xl",
+      "item_active": "flex-1 text-center py-2.5 bg-white text-[#0B2545] rounded-lg shadow-sm font-semibold text-sm transition-all",
+      "item_inactive": "flex-1 text-center py-2.5 text-[#475569] font-medium text-sm transition-all hover:text-[#0B2545]"
+    },
+    "slider": {
+      "track": "bg-[#E1E5EB] h-2 rounded-full",
+      "range": "bg-[#13A8A8] absolute h-full rounded-full",
+      "thumb": "block w-6 h-6 bg-white border-2 border-[#13A8A8] rounded-full shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8]/50 cursor-grab active:cursor-grabbing"
+    },
+    "score_card": {
+      "layout": "p-5 rounded-xl border border-[#E1E5EB] bg-white flex flex-col items-center justify-center text-center shadow-card transition-transform hover:-translate-y-1",
+      "grid": "grid grid-cols-2 gap-4 md:grid-cols-4",
+      "colors": {
+        "good": "text-[#0F7B4F] bg-[#0F7B4F]/10 border-[#0F7B4F]/20",
+        "average": "text-[#D97706] bg-[#D97706]/10 border-[#D97706]/20",
+        "poor": "text-[#B22222] bg-[#B22222]/10 border-[#B22222]/20"
+      },
+      "typography": "text-2xl font-bold font-heading mb-1"
+    },
+    "empty_state": {
+      "layout": "flex flex-col items-center justify-center py-16 px-4 text-center bg-white rounded-xl border border-dashed border-[#E1E5EB]",
+      "icon": "text-[#13A8A8] mb-4 w-12 h-12 opacity-80",
+      "title": "text-lg font-semibold text-[#0B2545] mb-2",
+      "description": "text-sm text-[#475569] max-w-sm"
+    },
+    "loading_state": {
+      "layout": "flex flex-col items-center justify-center min-h-[400px]",
+      "spinner": "w-8 h-8 border-4 border-[#E1E5EB] border-t-[#13A8A8] rounded-full animate-spin",
+      "text": "mt-4 text-sm font-medium text-[#475569] animate-pulse"
+    },
+    "shadcn_mapping": {
+      "button": "Button (Override: rounded-xl, font-medium, h-12 px-8. Primary: bg-[#0B2545] hover:bg-[#0B2545]/90 text-white)",
+      "slider": "Slider (Override with custom thumb and #13A8A8 range)",
+      "tabs": "Tabs (Use for segmented controls with pill styling)",
+      "input_otp": "Input OTP (Large blocks, border-[#E1E5EB], rounded-lg focus:border-[#13A8A8] focus:ring-[#13A8A8])",
+      "card": "Card (No border, shadow-card, rounded-xl, bg-white)",
+      "alert": "Alert (Customized with #B22222 for red-flag findings, bg-[#B22222]/5 border-[#B22222]/20)"
+    }
+  },
+  "stage_specifics": {
+    "stage_0": {
+      "background": "bg-gradient-to-br from-[#0B2545]/5 to-[#13A8A8]/5 min-h-screen",
+      "image_url": "https://images.unsplash.com/photo-1633647517075-3bdafbc7b68c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMG1pbmltYWwlMjBuYXZ5JTIwYmx1ZSUyMHRleHR1cmV8ZW58MHx8fHwxNzc3NzgzODg5fDA&ixlib=rb-4.1.0&q=85",
+      "notes": "Hook landing. Use the navy texture image blended with the 5% gradient at 10-20% opacity as a fixed background. Big CTA bottom-anchored on mobile."
+    },
+    "stage_2": {
+      "image_url": "https://images.unsplash.com/photo-1497486751825-1233686d5d80?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwyfHxpbmRpYW4lMjBmYW1pbHklMjBoYXBweXxlbnwwfHx8fDE3Nzc3ODM4Nzd8MA&ixlib=rb-4.1.0&q=85",
+      "notes": "Family snapshot stage. Subtle usage of the family image in a top banner card, lightly blurred with an off-white overlay."
+    },
+    "stage_6": {
+      "notes": "Audit report. Must render 4 tappable score cards in 2x2 grid on mobile (4-across desktop). Use 'score_card' design."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the selected fonts: Cabinet Grotesk for Headings, Inter for Body. If Cabinet Grotesk is unavailable via standard Google Fonts, use 'Outfit' or 'General Sans' but maintain the tight tracking and heavy weights for H1/H2.",
+    "Implement progressive disclosure explicitly: state variables must trigger Framer Motion layout animations when revealing the next slider or chip group. Do not show the next question until the current one is answered.",
+    "Use Phosphor icons (bold or duotone) for a premium fintech feel.",
+    "Do NOT use raw HTML inputs for complex interactions (use Shadcn Slider, Tabs, Input OTP).",
+    "All interactive elements must have a data-testid attribute in kebab-case (e.g. data-testid='start-audit-button').",
+    "Format currency in Indian format: ₹XX,XX,XXX (Lakhs/Crores) using Intl.NumberFormat('en-IN').",
+    "Use 'flex-1' and 'min-h-[100dvh]' for main layouts to ensure the bottom-anchored CTA behaves correctly on iOS Safari.",
+    "Ensure all Stage 1-6 layouts accommodate the sticky 6-dot progress bar at the very top without content overlapping underneath.",
+    "All components should be in .js/.jsx, not .tsx as per the environment rules."
+  ]
+}
