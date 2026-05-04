@@ -13,6 +13,7 @@ import QuickActions from "../components/dashboard/QuickActions";
 import DashboardEmptyState from "../components/dashboard/DashboardEmptyState";
 import AddMemberModal from "../components/dashboard/AddMemberModal";
 import PolicyDetailView from "../components/dashboard/PolicyDetailView";
+import DashboardSkeleton from "../components/dashboard/DashboardSkeleton";
 import { useAuth } from "../lib/auth";
 import api from "../lib/api";
 
@@ -128,11 +129,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {hasAudit && loading && (
-          <div className="flex items-center justify-center py-24">
-            <div className="w-8 h-8 border-4 border-[#E1E5EB] border-t-[#13A8A8] rounded-full animate-spin" />
-          </div>
-        )}
+        {hasAudit && loading && <DashboardSkeleton />}
 
         {hasAudit && !loading && audit && !onPortfolio && selectedPolicy && (
           <PolicyDetailView
