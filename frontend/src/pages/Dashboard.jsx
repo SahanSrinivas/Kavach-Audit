@@ -1,17 +1,36 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut } from "lucide-react";
 import { Button } from "../components/ui/button";
 import Header from "../components/Header";
-import PortfolioHeader from "../components/dashboard/PortfolioHeader";
+import HeroScore from "../components/dashboard/HeroScore";
+import ScoreTiles from "../components/dashboard/ScoreTiles";
+import TopFindingCard from "../components/dashboard/TopFindingCard";
 import CoverageByType from "../components/dashboard/CoverageByType";
 import PoliciesList from "../components/dashboard/PoliciesList";
 import AlertsInbox from "../components/dashboard/AlertsInbox";
 import QuickActions from "../components/dashboard/QuickActions";
 import DashboardEmptyState from "../components/dashboard/DashboardEmptyState";
 import AddMemberModal from "../components/dashboard/AddMemberModal";
+import PolicyDetailView from "../components/dashboard/PolicyDetailView";
 import { useAuth } from "../lib/auth";
 import api from "../lib/api";
+
+// Portfolio-view "Your shield" hero copy keyed off the gap score band.
+function gapHeadline(gap) {
+  if (gap === null || gap === undefined) return "Your audit is incomplete.";
+  if (gap >= 75) return "You're well-protected.";
+  if (gap >= 50) return "1 critical gap to close.";
+  return "Critical gaps in your cover.";
+}
+
+function gapSublabel(gap) {
+  if (gap === null || gap === undefined)
+    return "Re-run the audit with more data to get a score.";
+  if (gap >= 75)
+    return "Your portfolio covers the major risks for someone in your profile.";
+  return "Tap the score tiles below to see exactly what's missing — or open the top red flag and fix it.";
+}
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -21,6 +40,13 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
+
+  // "portfolio" or a policy.id. Defaults to portfolio; we auto-jump
+  // to the single policy on first load when the user has exactly one
+  // (single-policy users would never see useful audit-level cost or
+  // gap scores otherwise).
+  const [selectedPolicyId, setSelectedPolicyId] = useState("portfolio");
+  const initialJumpedRef = useRef(false);
 
   const hasAudit = user?.has_audit;
 
@@ -44,6 +70,34 @@ export default function Dashboard() {
       }
     })();
   }, [hasAudit]);
+
+  // First-load auto-jump for single-policy users. Ref-guarded so a user
+  // who manually navigates back to portfolio doesn't get yanked back in.
+  useEffect(() => {
+    if (initialJumpedRef.current) return;
+    if (loading) return;
+    if (policies.length === 1) {
+      setSelectedPolicyId(policies[0].id);
+    }
+    initialJumpedRef.current = true;
+  }, [loading, policies]);
+
+  const onPortfolio = selectedPolicyId === "portfolio";
+  const selectedPolicy = !onPortfolio
+    ? policies.find((p) => p.id === selectedPolicyId)
+    : null;
+
+  // Edge: selected policy got deleted in another tab. Fall back to
+  // portfolio rather than rendering an empty detail view.
+  useEffect(() => {
+    if (!onPortfolio && policies.length > 0 && !selectedPolicy) {
+      setSelectedPolicyId("portfolio");
+    }
+  }, [onPortfolio, policies, selectedPolicy]);
+
+  const fixFinding = (finding) => {
+    navigate(`/recommendations?finding_id=${finding.id}`);
+  };
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC]">
@@ -80,17 +134,40 @@ export default function Dashboard() {
           </div>
         )}
 
-        {hasAudit && !loading && audit && (
-          <div className="space-y-10" data-testid="dashboard-filled-state">
-            <PortfolioHeader portfolio={audit.portfolio} />
+        {hasAudit && !loading && audit && !onPortfolio && selectedPolicy && (
+          <PolicyDetailView
+            policy={selectedPolicy}
+            audit={audit}
+            onBack={() => setSelectedPolicyId("portfolio")}
+            onFixFinding={fixFinding}
+          />
+        )}
+
+        {hasAudit && !loading && audit && onPortfolio && (
+          <div className="space-y-8" data-testid="dashboard-filled-state">
+            <HeroScore
+              eyebrow="Your shield"
+              value={audit.scores?.gap ?? null}
+              label={gapHeadline(audit.scores?.gap)}
+              sublabel={gapSublabel(audit.scores?.gap)}
+            />
+            <ScoreTiles
+              scores={audit.scores || {}}
+              breakdowns={audit.breakdowns || {}}
+            />
+            <TopFindingCard
+              finding={audit.findings?.[0] || null}
+              onFix={fixFinding}
+            />
             <CoverageByType
-              rows={audit.portfolio.by_type}
+              rows={audit.portfolio?.by_type || []}
               onViewAudit={() => navigate("/audit/report")}
             />
             <PoliciesList
               policies={policies}
               findings={audit.all_findings || []}
               onAddPolicy={() => navigate("/audit/policies")}
+              onSelectPolicy={setSelectedPolicyId}
             />
             <AlertsInbox
               alerts={alerts}

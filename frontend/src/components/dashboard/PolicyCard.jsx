@@ -14,7 +14,13 @@ import { formatINR } from "../../lib/currency";
 // policy. Severity drives color (any "red" → critical/red; else "amber"
 // → warn/amber; none → ok/green). Info-level findings are educational
 // notes, not issues, so they don't count.
-export default function PolicyCard({ policy, findingsForPolicy = [] }) {
+//
+// Tap behavior: when onSelect is provided, the whole card becomes a
+// button that calls onSelect(policy.id) — that's what enters the
+// per-policy detail view. Falls back to a non-interactive article when
+// onSelect is omitted (preserves the v0.5.x behavior for any caller
+// that wants a static card).
+export default function PolicyCard({ policy, findingsForPolicy = [], onSelect }) {
   const hasNickname = Boolean(policy.policy_nickname);
   const primaryTitle = hasNickname ? policy.policy_nickname : policy.insurer;
   const productLabel = policy.policy_name || policy.type;
@@ -37,10 +43,18 @@ export default function PolicyCard({ policy, findingsForPolicy = [] }) {
       cls: "text-[#D97706] bg-[#D97706]/10",
     };
   }
+  const Wrapper = onSelect ? "button" : "article";
+  const wrapperProps = onSelect
+    ? { type: "button", onClick: () => onSelect(policy.id) }
+    : {};
+
   return (
-    <article
+    <Wrapper
       data-testid={`policy-card-${policy.id}`}
-      className="p-5 rounded-xl bg-white border border-[#E1E5EB] kv-shadow-card flex items-start gap-4"
+      {...wrapperProps}
+      className={`w-full text-left p-5 rounded-xl bg-white border border-[#E1E5EB] kv-shadow-card flex items-start gap-4 ${
+        onSelect ? "hover:border-[#13A8A8]/40 transition-colors" : ""
+      }`}
     >
       <span className="w-12 h-12 rounded-lg bg-[#13A8A8]/10 flex items-center justify-center flex-none">
         <FileText className="w-5 h-5 text-[#13A8A8]" />
@@ -73,6 +87,6 @@ export default function PolicyCard({ policy, findingsForPolicy = [] }) {
           )}
         </p>
       </div>
-    </article>
+    </Wrapper>
   );
 }

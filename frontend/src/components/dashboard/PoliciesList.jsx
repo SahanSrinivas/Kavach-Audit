@@ -6,7 +6,15 @@ import PolicyCard from "./PolicyCard";
 // Zone C — list of the user's policies with a header count + Add button.
 // Filters audit findings down to each policy via related_policy_id so
 // PolicyCard can render an honest issue chip per row.
-export default function PoliciesList({ policies, findings = [], onAddPolicy }) {
+//
+// onSelectPolicy makes each card tappable; the parent uses it to
+// switch into the per-policy detail view.
+export default function PoliciesList({
+  policies,
+  findings = [],
+  onAddPolicy,
+  onSelectPolicy,
+}) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 10 }}
@@ -42,6 +50,7 @@ export default function PoliciesList({ policies, findings = [], onAddPolicy }) {
               findingsForPolicy={findings.filter(
                 (f) => f.related_policy_id === p.id,
               )}
+              onSelect={onSelectPolicy}
             />
           ))}
         </div>
