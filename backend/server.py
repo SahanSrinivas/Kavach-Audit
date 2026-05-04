@@ -106,6 +106,11 @@ async def ensure_indexes():
     await db.parse_attempts.create_index([("user_id", 1), ("created_at", -1)])
     await db.family_members.create_index("user_id")
     await db.early_access.create_index("user_id")
+    # Beta allowlist: unique compound index prevents duplicate (user, feature)
+    # rows. Without this, the admin POST endpoint silently inserts dupes.
+    await db.beta_allowlist.create_index(
+        [("user_id", 1), ("feature", 1)], unique=True,
+    )
 
 
 @app.on_event("shutdown")

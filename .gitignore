@@ -83,10 +83,14 @@ android-sdk/
 # Kavach
 backend/.env
 frontend/.env
--e 
+# Runtime PDF uploads (user-supplied insurance policies — never commit)
+backend/uploads/
+-e
 # Environment and credential files
 .env
 .env.*
+!.env.example
+!backend/.env.example
 *.env
 credentials.json
 *.pem
@@ -111,3 +115,8 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Negate at end so duplicate .env.* patterns above don't re-block these.
+# .env.example files DO get committed (they're templates).
+!.env.example
+!backend/.env.example
