@@ -283,6 +283,12 @@ def to_engine_shape(parsed: ParsedPolicy) -> dict[str, Any]:
         "sub_limits": [
             _flatten_sublimit(sl, si_or_zero) for sl in pf.sub_limits
         ],
+        # plan_name passes through for the wordings-DB lookup join key
+        # (Phase 1.5). The audit engine itself doesn't read this field;
+        # it's here so the merger and any downstream consumer can read
+        # the plan name from a single place (parsed_fields) regardless
+        # of whether they have the rich ParsedPolicy or just the flat dict.
+        "plan_name": parsed.plan_name,
     }
     return flat
 

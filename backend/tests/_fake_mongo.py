@@ -13,12 +13,18 @@ class _Cursor:
     def __init__(self, rows: list[dict[str, Any]]) -> None:
         self._rows = rows
 
-    def sort(self, _key: str | list[tuple[str, int]], _direction: int = 1) -> "_Cursor":
-        # Deterministic but not actually sorted; tests don't care about order
+    def sort(self, key: str | list[tuple[str, int]], direction: int = 1) -> "_Cursor":
+        """Mongo's sort accepts either (key, direction) or
+        [(key, direction), ...]. Match the API so tests can rely on order."""
+        if isinstance(key, list):
+            for k, d in reversed(key):
+                self._rows.sort(key=lambda r, _k=k: r.get(_k) or "", reverse=(d == -1))
+        else:
+            self._rows.sort(key=lambda r: r.get(key) or "", reverse=(direction == -1))
         return self
 
-    async def to_list(self, _n: int) -> list[dict[str, Any]]:
-        return list(self._rows)
+    async def to_list(self, n: int) -> list[dict[str, Any]]:
+        return list(self._rows[:n])
 
 
 class _DeleteResult:

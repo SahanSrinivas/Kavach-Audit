@@ -83,6 +83,19 @@ def test_template_has_exactly_one_substitution_token() -> None:
 
 # ---------- Idempotency ----------
 
+def test_build_parsing_prompt_includes_plan_name_extraction_rule() -> None:
+    """The wordings DB joins on plan_name. If anyone removes the
+    extraction rule, lookup hit-rate goes to ~0% silently."""
+    prompt = build_parsing_prompt()
+    assert '"plan_name"' in prompt
+    assert '"plan_name_raw"' in prompt
+    # Rule #17 — substring spot-check so a refactor that drops the rule
+    # explanation (not just the schema entry) still fails this test
+    assert "join key" in prompt or "wordings" in prompt
+    # Worked examples must appear so Claude knows what cleaned vs verbatim look like
+    assert "Optima Restore" in prompt
+
+
 def test_build_parsing_prompt_is_deterministic() -> None:
     """Same template + same canonical list → identical output every call."""
     a = build_parsing_prompt()

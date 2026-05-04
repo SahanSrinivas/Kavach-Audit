@@ -769,6 +769,8 @@ def test_to_engine_shape_handles_all_nulls_without_crashing() -> None:
     assert flat["network_hospitals"] is None
     assert flat["ambulance_cap"] is None
     assert flat["ped_waiting_years"] is None
+    # plan_name passes through (None when Claude couldn't extract a product name)
+    assert flat["plan_name"] is None
 
 
 # ==========================================================================

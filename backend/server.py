@@ -111,6 +111,15 @@ async def ensure_indexes():
     await db.beta_allowlist.create_index(
         [("user_id", 1), ("feature", 1)], unique=True,
     )
+    # Wordings DB (Phase 1.5): pre-parsed policy-rule documents the audit
+    # pipeline looks up when a user uploads only a schedule. Primary lookup
+    # is (insurer, plan_name_normalized) — unique compound. Secondary
+    # indexes serve the admin review queue and recent-imports listing.
+    await db.wordings.create_index(
+        [("insurer_canonical", 1), ("plan_name_normalized", 1)], unique=True,
+    )
+    await db.wordings.create_index("qa_status")
+    await db.wordings.create_index([("parsed_at", -1)])
 
 
 @app.on_event("shutdown")

@@ -226,6 +226,13 @@ class ParsedPolicy(BaseModel):
     insurer_name_raw: str
     policy_type: PolicyType
     policy_number: Optional[str] = None
+    # Marketing/product name printed on the schedule cover page.
+    # plan_name = canonical short form ("Optima Restore", "ReAssure 2.0")
+    # plan_name_raw = verbatim ("HDFC ERGO Optima Restore Family Floater Plan")
+    # Both nullable: wording-only docs without a clear title get None.
+    # Used as the join key for wordings DB lookup (Phase 1.5).
+    plan_name: Optional[str] = None
+    plan_name_raw: Optional[str] = None
     # sum_insured / premium_annual are nullable to honor Claude's correct
     # behavior of returning null for wording-only documents (no schedule).
     # The audit engine handles None by skipping the policy from coverage

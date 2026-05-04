@@ -130,3 +130,63 @@ These were considered, deferred, or don't materialize until later phases:
    addon plans where the addon inherits all rules from the base plan and
    only overrides a few. Out of scope for Phase 1.5; revisit if it
    becomes common in our top-30 set.
+
+---
+
+## Operational learnings from first wording parse (HDFC ERGO Optima Restore, 2026-05-04)
+
+Captured after the worked-example dry-run on `optima-restore-revision.pdf`
+(755 KB, 50+ pages). These shape the admin runbook.
+
+### Reliably-null fields for wording-only parses
+
+The following parsed_fields are essentially always `null` when parsing a
+wording document (vs a schedule), because the data lives in marketing
+materials or insurer-specific quote tables, not in the wording PDF
+itself:
+
+- `network_hospital_count` — wordings name the cashless TPA but rarely
+  state the count; admin must populate from insurer's website / brochure
+- `day_care_procedures_count` — wordings list named procedures (often
+  100+ entries by name) but rarely give a count
+- `available_sum_insured_lakhs` — listed in the "Schedule of Benefits"
+  table that's typically a separate brochure document
+- `add_ons` — same; lives in product brochures, not the wording
+
+**Don't fail QA on these being null for wording parses.** Future
+enhancement: admin PATCH endpoint that takes a small JSON of these
+per-insurer marketing fields and merges into the stored wording.
+
+### `parse_confidence: "low"` is NORMAL for wordings
+
+For schedules, `confidence: "low"` is a red flag (means SI/premium/dates
+unextractable). For WORDINGS, `low` is the default and expected
+state — wordings genuinely lack:
+
+- `sum_insured` (lives on the user's specific schedule)
+- `premium_annual` (same)
+- `policy_start_date` / `policy_end_date` (same)
+- `covered_members` (same)
+
+The validator (correctly) flags these as low-conf because they're missing.
+But for wordings, this is by design.
+
+**QA decision rule: ignore `parse_confidence.overall` for wordings.
+Make qa_status decisions on whether the RULES BLOCK is accurate** —
+specifically: does `room_rent_cap`, `copay_percent`, `ped_waiting_months`,
+`permanent_exclusions`, `restoration_benefit`, `ncb_structure`, and
+`sub_limits` match the wording document? Those are the lookup payload.
+
+### Admin runbook tl;dr (for the next-session reviewer)
+
+1. `python scripts/parse_wording.py --dry-run --pdf X --insurer Y --plan Z`
+   → eyeball the rules block. If it matches what the wording says, proceed.
+2. Re-run WITHOUT `--dry-run` to actually store as `auto_parsed`.
+3. `python scripts/verify_wording.py --id <id> --notes "QA passed"`
+   → promotes to `human_verified`.
+4. If rules look wrong (sub-limit miscoded, exclusion missing, etc.),
+   either:
+   - `verify_wording.py --status needs_review --notes "..."` and queue
+     for re-parse, OR
+   - re-parse with the same `--insurer` + `--plan` (idempotent — same
+     id, replaces rules, resets qa_status to auto_parsed).

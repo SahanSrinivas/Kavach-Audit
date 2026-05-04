@@ -200,8 +200,17 @@ def _engine_type_for(policy_type: str) -> str:
 
 
 def _derive_policy_name(parsed: Any) -> str:
-    """Best-effort product name from the rich parse. Falls back to insurer
-    name + policy_type so the UI always has something to display."""
+    """Best-effort product name. Prefers Claude's extracted plan_name
+    (the actual marketing name from the schedule cover page — e.g.,
+    "Optima Restore"); falls back to the synthesized insurer + type
+    string only when plan_name is null (e.g., wording-only PDF where
+    no product title was extractable).
+
+    The wordings-DB lookup uses parsed.plan_name (not the synthesized
+    policy_name) as its join key — see services/wordings.py.
+    """
+    if parsed.plan_name:
+        return str(parsed.plan_name)
     return f"{parsed.insurer_name} {parsed.policy_type.replace('_', ' ').title()}"
 
 
