@@ -4,7 +4,9 @@ import { Plus } from "lucide-react";
 import PolicyCard from "./PolicyCard";
 
 // Zone C — list of the user's policies with a header count + Add button.
-export default function PoliciesList({ policies, onAddPolicy }) {
+// Filters audit findings down to each policy via related_policy_id so
+// PolicyCard can render an honest issue chip per row.
+export default function PoliciesList({ policies, findings = [], onAddPolicy }) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 10 }}
@@ -34,7 +36,13 @@ export default function PoliciesList({ policies, onAddPolicy }) {
       ) : (
         <div className="space-y-3">
           {policies.map((p) => (
-            <PolicyCard key={p.id} policy={p} />
+            <PolicyCard
+              key={p.id}
+              policy={p}
+              findingsForPolicy={findings.filter(
+                (f) => f.related_policy_id === p.id,
+              )}
+            />
           ))}
         </div>
       )}

@@ -3,27 +3,40 @@ import { FileText } from "lucide-react";
 import { formatINR } from "../../lib/currency";
 
 // Single policy row in the dashboard list.
-// Flag count proxy from sub_limits length is brittle — replaced in commit 4
-// with related_policy_id-filtered findings.
 //
 // Title rule: if the user gave the policy a nickname ("Father's policy"),
 // that's the primary line and insurer is demoted to the sub-line — that's
 // the whole point of the v0.5.2 nickname feature. Legacy policies (no
 // nickname, including all rows uploaded before that release) keep the
 // previous behavior with insurer as the title.
-export default function PolicyCard({ policy }) {
+//
+// Chip rule: counts the audit findings whose related_policy_id === this
+// policy. Severity drives color (any "red" → critical/red; else "amber"
+// → warn/amber; none → ok/green). Info-level findings are educational
+// notes, not issues, so they don't count.
+export default function PolicyCard({ policy, findingsForPolicy = [] }) {
   const hasNickname = Boolean(policy.policy_nickname);
   const primaryTitle = hasNickname ? policy.policy_nickname : policy.insurer;
   const productLabel = policy.policy_name || policy.type;
 
-  const flagCount = policy.parsed_fields?.sub_limits?.length || 0;
-  const flagState = flagCount === 0 ? "ok" : flagCount <= 2 ? "warn" : "critical";
-  const badge =
-    flagState === "ok"
-      ? { label: "✓ no issues", cls: "text-[#0F7B4F] bg-[#0F7B4F]/10" }
-      : flagState === "warn"
-        ? { label: `⚠ ${flagCount} red flags`, cls: "text-[#D97706] bg-[#D97706]/10" }
-        : { label: `🚩 ${flagCount} critical`, cls: "text-[#B22222] bg-[#B22222]/10" };
+  const issues = findingsForPolicy.filter((f) => f.severity !== "info");
+  const count = issues.length;
+  const hasRed = issues.some((f) => f.severity === "red");
+
+  let badge;
+  if (count === 0) {
+    badge = { label: "✓ no issues", cls: "text-[#0F7B4F] bg-[#0F7B4F]/10" };
+  } else if (hasRed) {
+    badge = {
+      label: `🚩 ${count} critical`,
+      cls: "text-[#B22222] bg-[#B22222]/10",
+    };
+  } else {
+    badge = {
+      label: `⚠ ${count} red flag${count === 1 ? "" : "s"}`,
+      cls: "text-[#D97706] bg-[#D97706]/10",
+    };
+  }
   return (
     <article
       data-testid={`policy-card-${policy.id}`}

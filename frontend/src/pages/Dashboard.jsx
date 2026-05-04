@@ -89,6 +89,7 @@ export default function Dashboard() {
             />
             <PoliciesList
               policies={policies}
+              findings={audit.all_findings || []}
               onAddPolicy={() => navigate("/audit/policies")}
             />
             <AlertsInbox
