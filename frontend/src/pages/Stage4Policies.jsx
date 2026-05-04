@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -25,6 +25,15 @@ const PARSE_HINTS = [
   "Calculating claim-risk…",
   "Comparing to market…",
 ];
+
+// Rotating placeholders for the nickname input. Examples mirror typical
+// Indian household scenarios so the user immediately gets the idea.
+const NICKNAME_PLACEHOLDERS = [
+  "Father's policy",
+  "My office policy",
+  "Wife's HDFC plan",
+];
+const NICKNAME_MAX_LEN = 60;
 
 const HEALTH_INSURERS = [
   "HDFC ERGO General Insurance",
@@ -132,6 +141,26 @@ export default function Stage4Policies() {
   const fileInputRef = useRef();
   const [uploading, setUploading] = useState([]); // [{name}]
   const [parsedPolicies, setParsedPolicies] = useState([]);
+  // Existing-policy count (from prior sessions). Loaded once on mount;
+  // determines whether the nickname field is required (>= 1 → required).
+  const [existingPolicyCount, setExistingPolicyCount] = useState(0);
+  // Nickname input + rotating placeholder
+  const [nickname, setNickname] = useState("");
+  const [nicknamePlaceholderIdx, setNicknamePlaceholderIdx] = useState(0);
+
+  useEffect(() => {
+    api.get("/policies")
+      .then((r) => setExistingPolicyCount(r.data?.data?.policies?.length || 0))
+      .catch(() => setExistingPolicyCount(0));   // default-safe — hint UX, not gate
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(
+      () => setNicknamePlaceholderIdx((i) => (i + 1) % NICKNAME_PLACEHOLDERS.length),
+      3000,
+    );
+    return () => clearInterval(t);
+  }, []);
 
   // Declare state
   const [declareType, setDeclareType] = useState("");
@@ -141,12 +170,25 @@ export default function Stage4Policies() {
   const [premium, setPremium] = useState(15000);
   const [declared, setDeclared] = useState([]);
 
+  // Total policies the user will have after this session: prior + uploaded
+  // this session + declared this session. Drives whether the nickname
+  // input is required (>= 1 → required); first-ever upload stays optional.
+  const nicknameRequired =
+    existingPolicyCount + parsedPolicies.length + declared.length >= 1;
+
   const handleFiles = async (files) => {
+    const trimmedNick = nickname.trim();
+    if (nicknameRequired && !trimmedNick) {
+      toast.error("Add a nickname so you can tell this policy apart from your others.");
+      fileInputRef.current?.focus?.();
+      return;
+    }
     const list = Array.from(files);
     setUploading((prev) => [...prev, ...list.map((f) => ({ name: f.name }))]);
     for (const f of list) {
       const fd = new FormData();
       fd.append("file", f);
+      if (trimmedNick) fd.append("nickname", trimmedNick);
       try {
         const r = await api.post("/policies/upload", fd, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -154,11 +196,21 @@ export default function Stage4Policies() {
         const pol = r.data?.data?.policy;
         if (pol) setParsedPolicies((prev) => [...prev, pol]);
       } catch (e) {
-        toast.error(`Couldn't parse ${f.name} — try Quick declare instead.`);
+        const detail = e?.response?.data?.detail;
+        if (detail?.error === "nickname_required") {
+          toast.error(detail.message || "Please add a nickname before uploading.");
+        } else if (detail?.error === "nickname_too_long") {
+          toast.error(detail.message || `Nickname must be ${NICKNAME_MAX_LEN} chars or less.`);
+        } else {
+          toast.error(`Couldn't parse ${f.name} — try Quick declare instead.`);
+        }
       } finally {
         setUploading((prev) => prev.filter((u) => u.name !== f.name));
       }
     }
+    // Clear the nickname after a successful upload so the next file
+    // gets a fresh field — keeps multi-policy households fast.
+    setNickname("");
   };
 
   const onDrop = (e) => {
@@ -261,6 +313,44 @@ export default function Stage4Policies() {
               className="mt-8"
               data-testid="upload-block"
             >
+              {/* Nickname input — required when user has 2+ policies so
+                  the dashboard can tell them apart. First upload optional. */}
+              <div className="mb-5" data-testid="nickname-block">
+                <label
+                  htmlFor="nickname-input"
+                  className="block text-sm font-semibold text-[#0B2545] mb-1.5"
+                >
+                  Give this policy a nickname
+                  {nicknameRequired && (
+                    <span
+                      className="text-[#B22222] ml-1"
+                      aria-label="required"
+                      data-testid="nickname-required-marker"
+                    >
+                      *
+                    </span>
+                  )}
+                </label>
+                <input
+                  id="nickname-input"
+                  data-testid="nickname-input"
+                  type="text"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value.slice(0, NICKNAME_MAX_LEN))}
+                  maxLength={NICKNAME_MAX_LEN}
+                  placeholder={NICKNAME_PLACEHOLDERS[nicknamePlaceholderIdx]}
+                  className="w-full h-12 px-4 rounded-xl border border-[#E1E5EB] bg-white text-[#0B2545] placeholder:text-[#475569]/50 focus:outline-none focus:border-[#13A8A8] focus:ring-2 focus:ring-[#13A8A8]/20 transition-colors"
+                />
+                <p className="text-xs text-[#475569] mt-1.5">
+                  Helps you tell policies apart in your dashboard
+                  {nickname.length > 0 && (
+                    <span className="ml-2 text-[#475569]/70">
+                      · {nickname.length}/{NICKNAME_MAX_LEN}
+                    </span>
+                  )}
+                </p>
+              </div>
+
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={onDrop}

@@ -21,7 +21,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 
 from auth import get_current_user, verify_csrf
@@ -42,6 +42,21 @@ UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 PARSE_LIMIT_PER_HOUR = 5
 MAX_PDF_BYTES = 15 * 1024 * 1024
+MAX_NICKNAME_LEN = 60   # cap on user-supplied policy_nickname; prevents
+                        # accidental novel-length input + keeps dashboard
+                        # row heights bounded
+
+
+def _normalize_nickname(nickname: Optional[str]) -> Optional[str]:
+    """Strip whitespace; treat empty/whitespace-only as None.
+
+    Caller-supplied "" or "   " are equivalent to "no nickname provided"
+    — we never store the empty string. Returns None or a trimmed string.
+    """
+    if nickname is None:
+        return None
+    stripped = nickname.strip()
+    return stripped or None
 
 
 def _ok(data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -95,6 +110,7 @@ async def _build_parsed_policy(
     *,
     mode: str,
     beta_invocation: bool,
+    nickname: Optional[str] = None,
 ) -> dict[str, Any]:
     """Returns the policy dict ready to insert into db.policies.
 
@@ -104,7 +120,9 @@ async def _build_parsed_policy(
                         UX and future analytics)
     Mock branch produces only parsed_fields (parser_output absent),
     matching the existing fixture exactly. Both branches stamp
-    `parser_mode` + `beta_invocation` so Mongo records which path ran.
+    `parser_mode` + `beta_invocation` so Mongo records which path ran,
+    and `policy_nickname` (None or user-supplied) so the dashboard can
+    label this policy distinctly from the user's other policies.
     """
     if mode == "mock":
         logger.info("parser.mock filename=%s file_kb=%d", filename, len(pdf_bytes) // 1024)
@@ -112,6 +130,7 @@ async def _build_parsed_policy(
         doc = make_mock_parsed_policy(user_id=user_id, raw_pdf_path=raw_path)
         doc["parser_mode"] = "mock"
         doc["beta_invocation"] = beta_invocation
+        doc["policy_nickname"] = nickname
         return doc
 
     try:
@@ -124,6 +143,7 @@ async def _build_parsed_policy(
             doc = make_mock_parsed_policy(user_id=user_id, raw_pdf_path=raw_path)
             doc["parser_mode"] = "mock"  # fallback served mock
             doc["beta_invocation"] = beta_invocation
+            doc["policy_nickname"] = nickname
             return doc
         raise HTTPException(status_code=502, detail={
             "error": "parse_failure",
@@ -154,6 +174,7 @@ async def _build_parsed_policy(
         "raw_pdf_path": raw_path,
         "parsed_fields": flat,                    # ← engine reads this
         "is_employer_group": parsed.is_employer_group,
+        "policy_nickname": nickname,              # user-supplied; null on first upload
         # ---- rich extras (frontend ignores; future analytics) ----
         "parser_output": rich,
         "insurer_name_raw": parsed.insurer_name_raw,
@@ -219,12 +240,36 @@ def _derive_policy_name(parsed: Any) -> str:
 async def upload_policy(
     request: Request,
     file: UploadFile = File(...),
+    nickname: Optional[str] = Form(default=None),
     current: dict[str, Any] = Depends(get_current_user),
     beta: Optional[str] = Query(default=None),
 ) -> dict[str, Any]:
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="only_pdf_supported")
     db = request.app.state.db
+
+    # Validate + normalize nickname before any expensive work (parse, etc.)
+    nickname = _normalize_nickname(nickname)
+    if nickname is not None and len(nickname) > MAX_NICKNAME_LEN:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "nickname_too_long",
+                    "message": f"nickname must be <= {MAX_NICKNAME_LEN} chars "
+                               f"(got {len(nickname)})"},
+        )
+    # Required if user already has at least one policy on file (so the
+    # dashboard can disambiguate). The very first upload doesn't need one.
+    existing_policy_count = await db.policies.count_documents(
+        {"user_id": current["user_id"]},
+    )
+    if existing_policy_count >= 1 and nickname is None:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "nickname_required",
+                    "message": "Please add a nickname to tell this policy "
+                               "apart from your other policies."},
+        )
+
     mode, beta_invocation = await resolve_engine_mode(
         db=db,
         user_id=current["user_id"],
@@ -273,6 +318,7 @@ async def upload_policy(
         filename=file.filename,
         db=db,
         sha=sha,
+        nickname=nickname,
     )
     parsed_doc["raw_sha"] = sha
     await db.policies.insert_one(dict(parsed_doc))

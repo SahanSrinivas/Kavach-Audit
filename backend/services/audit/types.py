@@ -107,6 +107,10 @@ class Policy:
     source: str = "declared"
     is_employer_group: bool = False
     end_date: Optional[str] = None
+    # User-supplied nickname for the policy ("Father's policy", "Office cover",
+    # etc.). Always None for first uploads; required-by-server when user has
+    # 2+ policies. Engine doesn't read this — UI/dashboard only.
+    policy_nickname: Optional[str] = None
     # TODO(household-policy-linkage): when household policies arrive, route by
     # covered_member instead of attributing everything to the user.
     covered_member: Optional[str] = None
@@ -125,6 +129,7 @@ class Policy:
             source=str(d.get("source") or "declared"),
             is_employer_group=bool(d.get("is_employer_group", False)),
             end_date=d.get("end_date"),
+            policy_nickname=d.get("policy_nickname"),
             covered_member=d.get("covered_member"),
         )
 
