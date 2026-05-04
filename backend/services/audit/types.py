@@ -188,6 +188,10 @@ class PortfolioSummary:
 
 @dataclass(frozen=True, slots=True)
 class AuditResult:
+    # TODO(audit-history): no GET /audit/history endpoint exists yet, so the
+    # dashboard can only show a single snapshot. db.audits already stores
+    # every generate (one row per call) — surfacing them lets us render the
+    # score-over-time line chart proposed in docs/DASHBOARD_IA.md §1.4 gap #6.
     id: str
     user_id: str
     scores: Mapping[str, Optional[int]]   # {"coverage", "cost", "claim_readiness", "gap"}
