@@ -64,7 +64,62 @@ def make_mock_parsed_policy(user_id: str, raw_pdf_path: str = "") -> dict:
 
 
 # ---------- Stage 6 — full audit fixture ----------
-def make_mock_audit(user_id: str) -> dict:
+def make_mock_audit(
+    user_id: str,
+    *,
+    policy_ids: list[str] | None = None,
+) -> dict:
+    """Return a realistic audit dict with the same shape as the real engine.
+
+    `policy_ids`: optional list of the user's actual policy ids. When
+    provided, the first id is stamped on findings that point at a
+    specific policy (room rent cap, PED waiting). This lets the dashboard's
+    per-policy chip and detail-view filtering work in dev under
+    USE_MOCKS=true. When None, those findings get related_policy_id=None
+    — keeps older callers / tests that don't seed policies working.
+
+    Shape parity (kept in sync with services.audit.types.AuditResult):
+      scores, findings, all_findings, portfolio, breakdowns,
+      data_version, engine_ms, generated_at.
+    """
+    related_pid = policy_ids[0] if policy_ids else None
+
+    findings = [
+        {
+            "id": "f1",
+            "severity": "red",
+            "type": "room_rent_cap",
+            "icon": "alert-triangle",
+            "headline": "Your health policy has a ₹5,000/day room rent cap. In Mumbai, that means 40-60% of your hospital bill won't be covered.",
+            "explanation": "Most Tier-1 hospitals in Mumbai charge ₹12,000–₹18,000/day for a private room. When your policy caps room rent at ₹5,000, the insurer pays only that fraction of *every* bill line — surgery, doctor's fees, medicines — not just the room. This is called proportionate deduction and it's the single biggest reason genuine claims get reduced.",
+            "action": "Switch to a policy with no room rent cap. We have 2 such options that cost only ~₹6,000 more per year.",
+            "fix_target": "increase_health_cover",
+            "related_policy_id": related_pid,
+        },
+        {
+            "id": "f2",
+            "severity": "red",
+            "type": "term_life_gap",
+            "icon": "shield-off",
+            "headline": "You have no term life cover. With ₹15L of dependents and a ₹50K monthly EMI, your family needs at least ₹2Cr.",
+            "explanation": "Term life is the cheapest insurance per rupee of cover. At your age (32, non-smoker), ₹2Cr cover costs roughly ₹14,000–₹18,000 per year. Without it, your family would lose 12–15 years of income if anything happens to you. This is the single most under-bought policy in India.",
+            "action": "Add term life of ₹2Cr from a top-CSR insurer. Three options ranked by fit.",
+            "fix_target": "buy_term_life",
+            "related_policy_id": None,   # missing-policy finding, not tied to any existing row
+        },
+        {
+            "id": "f3",
+            "severity": "amber",
+            "type": "ped_waiting",
+            "icon": "clock",
+            "headline": "3-year pre-existing disease waiting period. The market standard is now 2 years.",
+            "explanation": "If you or a covered family member has any pre-existing condition (diabetes, BP, thyroid), your insurer won't pay claims related to it for the first 3 years. Newer policies have brought this down to 24 months — and a few to 12 months. You're locked out of treatment for an extra year.",
+            "action": "Compare policies with 24-month PED waiting from your renewal date.",
+            "fix_target": "shorten_ped_wait",
+            "related_policy_id": related_pid,
+        },
+    ]
+
     return {
         "id": str(uuid.uuid4()),
         "user_id": user_id,
@@ -74,38 +129,47 @@ def make_mock_audit(user_id: str) -> dict:
             "claim_readiness": 41,
             "gap": 54,
         },
-        "findings": [
-            {
-                "id": "f1",
-                "severity": "red",
-                "type": "room_rent_cap",
-                "icon": "alert-triangle",
-                "headline": "Your health policy has a ₹5,000/day room rent cap. In Mumbai, that means 40-60% of your hospital bill won't be covered.",
-                "explanation": "Most Tier-1 hospitals in Mumbai charge ₹12,000–₹18,000/day for a private room. When your policy caps room rent at ₹5,000, the insurer pays only that fraction of *every* bill line — surgery, doctor's fees, medicines — not just the room. This is called proportionate deduction and it's the single biggest reason genuine claims get reduced.",
-                "action": "Switch to a policy with no room rent cap. We have 2 such options that cost only ~₹6,000 more per year.",
-                "fix_target": "increase_health_cover",
+        "findings": findings,
+        # Mock has no extras beyond top 3 — real engine returns the full
+        # ranked list including amber/info findings the UI doesn't promote.
+        "all_findings": findings,
+        "breakdowns": {
+            "coverage": {
+                "value": 62,
+                "label": "coverage",
+                "details": {
+                    "ideal_health_cover": 2500000,
+                    "actual_health_cover": 1500000,
+                    "shortfall_inr": 1000000,
+                    "city_tier": "tier-1",
+                },
             },
-            {
-                "id": "f2",
-                "severity": "red",
-                "type": "term_life_gap",
-                "icon": "shield-off",
-                "headline": "You have no term life cover. With ₹15L of dependents and a ₹50K monthly EMI, your family needs at least ₹2Cr.",
-                "explanation": "Term life is the cheapest insurance per rupee of cover. At your age (32, non-smoker), ₹2Cr cover costs roughly ₹14,000–₹18,000 per year. Without it, your family would lose 12–15 years of income if anything happens to you. This is the single most under-bought policy in India.",
-                "action": "Add term life of ₹2Cr from a top-CSR insurer. Three options ranked by fit.",
-                "fix_target": "buy_term_life",
+            "cost": {
+                "value": 78,
+                "label": "cost",
+                "details": {
+                    "actual_premium": 22400,
+                    "market_band": [18000, 25000],
+                    "verdict": "in band, slightly above median",
+                },
             },
-            {
-                "id": "f3",
-                "severity": "amber",
-                "type": "ped_waiting",
-                "icon": "clock",
-                "headline": "3-year pre-existing disease waiting period. The market standard is now 2 years.",
-                "explanation": "If you or a covered family member has any pre-existing condition (diabetes, BP, thyroid), your insurer won't pay claims related to it for the first 3 years. Newer policies have brought this down to 24 months — and a few to 12 months. You're locked out of treatment for an extra year.",
-                "action": "Compare policies with 24-month PED waiting from your renewal date.",
-                "fix_target": "shorten_ped_wait",
+            "claim_readiness": {
+                "value": 41,
+                "label": "claim_readiness",
+                "details": {
+                    "red_flags": ["room_rent_cap", "ped_waiting_3y", "copay_10pct"],
+                    "csr_score": 95.6,
+                },
             },
-        ],
+            "gap": {
+                "value": 54,
+                "label": "gap",
+                "details": {
+                    "missing_categories": ["term", "pa"],
+                    "underinsured_categories": ["health"],
+                },
+            },
+        },
         "portfolio": {
             "total_cover": 1500000,
             "total_premium": 22400,
@@ -119,6 +183,8 @@ def make_mock_audit(user_id: str) -> dict:
                 {"type": "Travel", "current": 0, "ideal": 0, "ratio": 100},
             ],
         },
+        "data_version": "wordings-2026.04",
+        "engine_ms": 12,   # mock doesn't actually run the engine; nominal value
         "generated_at": _utcnow_iso(),
     }
 

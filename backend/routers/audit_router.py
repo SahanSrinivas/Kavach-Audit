@@ -53,7 +53,16 @@ async def _generate_audit(
     The written row carries `engine_mode` + `beta_invocation` for analytics.
     """
     if mode == "mock":
-        audit = make_mock_audit(user_id)
+        # Pass real policy ids into the mock so findings can carry
+        # related_policy_id — that's what makes the dashboard's per-policy
+        # chip and detail-view filter work under USE_MOCKS=true. Cheap:
+        # small projection, capped at 100. When the user has no policies
+        # yet, related_policy_id stays None on every finding.
+        policy_rows = await db.policies.find(
+            {"user_id": user_id}, {"id": 1, "_id": 0}
+        ).to_list(100)
+        policy_ids = [p["id"] for p in policy_rows if "id" in p]
+        audit = make_mock_audit(user_id, policy_ids=policy_ids)
         audit["engine_mode"] = "mock"
         audit["beta_invocation"] = beta_invocation
         await db.audits.insert_one(dict(audit))

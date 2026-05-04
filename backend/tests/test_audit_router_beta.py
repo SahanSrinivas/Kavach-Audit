@@ -103,7 +103,9 @@ def test_beta_param_for_beta_user_returns_real_engine() -> None:
     audit = r.json()["data"]["audit"]
     assert audit["engine_mode"] == "real"
     assert audit["beta_invocation"] is True
-    # Real engine produces these fields; mock doesn't:
+    # Both engines produce these fields now — mock backfilled for shape
+    # parity in the dashboard-IA prep work. Kept here so a real-engine
+    # regression that drops them is still caught.
     assert "data_version" in audit
     assert "engine_ms" in audit
 
