@@ -29,6 +29,7 @@ def _canonical_insurers_block() -> str:
     # they are prompt copywriting (helps Claude disambiguate), distinct from
     # the runtime substring map used by insurer_canonicalizer.
     aliases_for_prompt: dict[str, list[str]] = {
+        # Health insurers
         "New India Assurance":   ["The New India Assurance Co.", "NIA"],
         "Go Digit Health":       ["Digit Insurance", "Go Digit General"],
         "Bajaj Allianz General": ["Bajaj Allianz", "Bajaj Allianz Health"],
@@ -48,6 +49,20 @@ def _canonical_insurers_block() -> str:
         "Future Generali":       ["Generali Central", "Future Generali India"],
         "Universal Sompo":       ["Universal Sompo General"],
         "Shriram General":       ["Shriram General Insurance"],
+        # Life insurers — note for Claude: distinguish from same-parent
+        # health entities (e.g. "HDFC Life" ≠ "HDFC ERGO General",
+        # "Tata AIA Life" ≠ "Tata AIG General").
+        "LIC":                   ["LIC of India", "Life Insurance Corporation of India"],
+        "HDFC Life":             ["HDFC Standard Life", "HDFC Life Insurance"],
+        "ICICI Prudential Life": ["ICICI Pru", "ICICI Prudential Life Insurance"],
+        "Max Life":              ["Max Life Insurance", "Max Financial Services"],
+        "Tata AIA Life":         ["Tata AIA Life Insurance", "Tata AIA"],
+        "SBI Life":              ["SBI Life Insurance", "State Bank Life"],
+        "Bajaj Allianz Life":    ["Bajaj Allianz Life Insurance"],
+        "Aditya Birla Sun Life": ["ABSLI", "Birla Sun Life", "Aditya Birla Sun Life Insurance"],
+        "Kotak Life":            ["Kotak Mahindra Life", "Kotak Life Insurance"],
+        "PNB MetLife":           ["MetLife India", "PNB MetLife India"],
+        "Exide Life":            ["Exide Life Insurance"],   # legacy; merged into HDFC Life Jan 2023 but pre-merger policies retain branding
     }
     lines: list[str] = []
     for canonical in CANONICAL_INSURER_NAMES:

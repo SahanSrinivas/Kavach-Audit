@@ -247,20 +247,51 @@ def _from_coverage(
         findings.append(_new_finding("underinsured_health",
                                      score_impact=int((1 - h["ratio"]) * 30),
                                      ctx=ctx))
-    # Life underinsurance
+    # Life underinsurance — Bug B fix: use _format_inr_short to avoid
+    # the previous "₹1 Cr floor" misreporting where any sub-crore actual
+    # life cover (e.g., a ₹4L endowment) displayed as "₹1 Cr cover".
     l = by_cat.get("life", {})
     if l.get("actual", 0) > 0 and l.get("ratio") is not None and l["ratio"] < 0.85:
-        actual_cr = max(1, int(round(l["actual"] / 10_000_000)))
-        ideal_cr = max(actual_cr + 1, int(round(l["ideal"] / 10_000_000)))
+        actual_inr = int(l["actual"])
+        ideal_inr = int(l["ideal"])
+        gap_inr = max(0, ideal_inr - actual_inr)
         ctx = {
-            "actual_cr": actual_cr,
-            "ideal_cr": ideal_cr,
-            "gap_cr": ideal_cr - actual_cr,
+            "actual_str": _format_inr_short(actual_inr),
+            "ideal_str": _format_inr_short(ideal_inr),
+            "gap_str": _format_inr_short(gap_inr),
         }
         findings.append(_new_finding("underinsured_life",
                                      score_impact=int((1 - l["ratio"]) * 25),
                                      ctx=ctx))
     return findings
+
+
+def _format_inr_short(amount: int) -> str:
+    """Format an INR amount as a short, user-readable string.
+
+    Rules:
+      < ₹1 Lakh    → "<₹1 Lakh"  (don't say "₹0 Lakh", which would round
+                                    a ₹50,000 cover to "₹0" — misleading)
+      ₹1L to <1Cr  → "₹X Lakh"   (rounded to nearest lakh; ₹1.5L → "₹2 Lakh"
+                                    via int(round()) — Python banker's rounding,
+                                    documented behavior)
+      >= ₹1 Crore  → "₹X Cr" or "₹X.Y Cr" (1 decimal precision; trailing
+                                    .0 stripped so ₹2.0 Cr displays as "₹2 Cr")
+
+    Bug context: previously findings.py used `max(1, int(round(amount / 1_00_00_000)))`
+    which floored every sub-crore value to "₹1 Cr". Real ₹4L endowment
+    displayed as "₹1 Cr cover". Trust-destroying for users who can read
+    their own policy schedule.
+    """
+    if amount < 100_000:
+        return "<₹1 Lakh"
+    if amount < 10_000_000:
+        lakhs = int(round(amount / 100_000))
+        return f"₹{lakhs} Lakh"
+    crores_str = f"{amount / 10_000_000:.1f}"
+    if crores_str.endswith(".0"):
+        crores_str = crores_str[:-2]
+    return f"₹{crores_str} Cr"
 
 
 def _from_cost(

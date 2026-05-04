@@ -51,8 +51,58 @@ _HAS_PROTECTION: dict[str, str] = {
 }
 
 
-def _has(policies: Sequence[Policy], category: str) -> bool:
-    return any(_HAS_PROTECTION.get(p.type) == category for p in policies)
+# Endowment / ULIP threshold for satisfying the term_life gap requirement.
+# A policy must provide >= ENDOWMENT_TERM_LIFE_FLOOR_X * annual income
+# in sum insured to count as meaningful term-life cover.
+#
+# Why 5x:
+#   - Conservative compromise. Indian financial-planning convention for
+#     true term life HLV is 10-15x annual income; below that, the death
+#     benefit is too small to replace the breadwinner's earnings.
+#   - 5x is the floor for "meaningful protection" per LIC's own training
+#     materials; below it, endowment is purely a savings vehicle, not a
+#     term-life substitute.
+#
+# Debatable extension: a stricter rule would be "endowment NEVER satisfies
+# term_life regardless of SI" because the product design is fundamentally
+# investment-with-death-rider, not pure protection. We did NOT implement
+# that here — surfaces too many false-negatives for users with high-SI
+# legacy endowment policies. Revisit with domain-expert review when we
+# have audit data on the false-positive rate at 5x.
+ENDOWMENT_TERM_LIFE_FLOOR_X: int = 5
+
+
+def _policy_satisfies_category(p: Policy, category: str, profile: UserProfile) -> bool:
+    """Per-category eligibility check beyond simple type-match.
+
+    For term_life: endowment/ULIP only count toward the requirement if
+    sum_insured >= ENDOWMENT_TERM_LIFE_FLOOR_X × annual income. Without
+    this floor, a ₹4L endowment falsely satisfies the term_life gap for
+    a user earning ₹15L (real bug surfaced in DOGFOOD_NOTES.md / Exide
+    Life Assured Gain Plus dogfood).
+
+    If income is unknown (profile.income == 0), we don't apply the floor
+    — treat any endowment as satisfying. This avoids penalizing users
+    who haven't filled out the money stage of the audit.
+    """
+    if category == "term_life" and p.type in ("endowment", "ulip"):
+        if p.sum_insured is None:
+            return False
+        if profile.income > 0 and p.sum_insured < ENDOWMENT_TERM_LIFE_FLOOR_X * profile.income:
+            return False
+    return True
+
+
+def _has(policies: Sequence[Policy], category: str, profile: UserProfile) -> bool:
+    """Returns True if any policy meaningfully satisfies the category.
+    See _policy_satisfies_category for the per-category eligibility rules."""
+    for p in policies:
+        if _HAS_PROTECTION.get(p.type) != category:
+            continue
+        if not _policy_satisfies_category(p, category, profile):
+            continue
+        return True
+    return False
 
 
 def _has_dependents(profile: UserProfile) -> bool:
@@ -124,7 +174,7 @@ def score(profile: UserProfile, policies: Sequence[Policy]) -> ScoreBreakdown:
     for category, required in checks:
         if not required:
             continue
-        if _has(policies, category):
+        if _has(policies, category, profile):
             continue
         ded = GAP_DEDUCTIONS.get(category, 0)
         if ded == 0:

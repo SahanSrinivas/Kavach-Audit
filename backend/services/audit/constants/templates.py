@@ -361,14 +361,18 @@ TEMPLATES: Final[dict[str, TemplateRecord]] = {
     "underinsured_life": {
         "severity_default": "high",
         "icon": "alert-triangle",
-        "headline": "Your term cover is ₹{actual_cr} Cr but your family needs ~₹{ideal_cr} Cr.",
+        # Uses pre-formatted strings (e.g., "₹4 Lakh", "₹1.5 Cr") rather
+        # than raw integers — see findings._format_inr_short() for the
+        # rules. Avoids the "₹1 Cr floor" misreporting bug where any
+        # sub-crore cover incorrectly displayed as "₹1 Cr".
+        "headline": "Your life cover is {actual_str} but your family needs ~{ideal_str}.",
         "explanation": (
-            "Based on your income, age, and dependents, ideal term cover is around ₹{ideal_cr} Cr. "
-            "You currently have ₹{actual_cr} Cr. The gap of ₹{gap_cr} Cr can be closed with a "
+            "Based on your income, age, and dependents, ideal life cover is around {ideal_str}. "
+            "You currently have {actual_str}. The gap of {gap_str} can be closed with a "
             "top-up term policy from a different insurer (cheaper than upgrading the existing "
             "one and gives diversification across insurers)."
         ),
-        "action": "Add ₹{gap_cr} Cr top-up term cover — at your age, ~₹500–800/year per ₹1 Cr.",
+        "action": "Add {gap_str} top-up term cover — at your age, ~₹500–800/year per ₹1 Cr.",
         "cta": "recommend",
     },
     # --- Cost-driven ---

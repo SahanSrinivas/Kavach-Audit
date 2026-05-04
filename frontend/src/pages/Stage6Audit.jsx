@@ -11,11 +11,20 @@ import { formatINR } from "../lib/currency";
 import api from "../lib/api";
 
 const SCORE_LABEL = (key, score) => {
+  // Null = engine couldn't score (missing data). Surface honest reason —
+  // never invent a number or pretend the user "failed."
+  if (score === null || score === undefined) {
+    if (key === "coverage")        return "Upload policies to score";
+    if (key === "cost")            return "Need 2+ policies to compare";
+    if (key === "claim_readiness") return "Need a health policy";
+    return "—";
+  }
   if (key === "coverage") {
     if (score >= 75) return "Adequate";
-    return score >= 50 ? "Underinsured" : `Severely underinsured`;
+    return score >= 50 ? "Underinsured" : "Severely underinsured";
   }
-  if (key === "cost") return score >= 75 ? "Reasonably priced" : score >= 50 ? "Slightly overpriced" : "Overpaying ~22%";
+  if (key === "cost")
+    return score >= 75 ? "Reasonably priced" : score >= 50 ? "Slightly above market" : "Above market rate";
   if (key === "claim_readiness")
     return score >= 75 ? "Clean" : score >= 50 ? "Some red flags" : "Multiple red flags";
   return score >= 75 ? "Well-protected" : score >= 50 ? "1 critical gap" : "Critical gaps";

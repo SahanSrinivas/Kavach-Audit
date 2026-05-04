@@ -1,8 +1,12 @@
 import React from "react";
 import { motion } from "framer-motion";
 
-const colorFor = (score) =>
-  score >= 75 ? "good" : score >= 50 ? "average" : "poor";
+// Null = engine couldn't score (missing data). Render as neutral grey
+// "N/A" — never as red "0", which would imply a failing score.
+const colorFor = (score) => {
+  if (score === null || score === undefined) return "na";
+  return score >= 75 ? "good" : score >= 50 ? "average" : "poor";
+};
 
 const STYLES = {
   good: {
@@ -20,9 +24,15 @@ const STYLES = {
     border: "border-[#B22222]/30",
     text: "text-[#B22222]",
   },
+  na: {
+    bg: "bg-[#475569]/5",
+    border: "border-[#E1E5EB]",
+    text: "text-[#475569]",
+  },
 };
 
 export default function AuditScoreCard({ icon, label, score, sublabel, testId, onClick, delay = 0 }) {
+  const isNa = score === null || score === undefined;
   const style = STYLES[colorFor(score)];
   return (
     <motion.button
@@ -41,9 +51,9 @@ export default function AuditScoreCard({ icon, label, score, sublabel, testId, o
       </div>
       <div className="mt-3 flex items-baseline gap-1">
         <span data-testid={`${testId}-value`} className={`font-heading text-4xl font-black tracking-tight ${style.text}`}>
-          {score}
+          {isNa ? "N/A" : score}
         </span>
-        <span className="text-sm font-medium text-[#475569]">/ 100</span>
+        {!isNa && <span className="text-sm font-medium text-[#475569]">/ 100</span>}
       </div>
       <p className={`mt-2 text-sm font-medium ${style.text}`}>{sublabel}</p>
     </motion.button>

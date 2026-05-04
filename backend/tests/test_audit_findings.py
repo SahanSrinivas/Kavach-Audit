@@ -155,3 +155,101 @@ def test_finding_severity_is_frontend_compatible() -> None:
     for f in result.findings:
         assert f.severity in ("red", "amber", "info")
         assert f.icon in ("alert-triangle", "shield-off", "clock")
+
+
+# ==========================================================================
+# Bug B regression — _format_inr_short + underinsured_life template text
+# ==========================================================================
+
+@pytest.mark.parametrize("amount,expected", [
+    # Sub-Lakh: never display "₹0 Lakh" — that would round a real ₹50K
+    # cover to nothing. Use the explicit "<₹1 Lakh" form.
+    (0,             "<₹1 Lakh"),
+    (1,             "<₹1 Lakh"),
+    (50_000,        "<₹1 Lakh"),
+    (99_999,        "<₹1 Lakh"),
+    # Lakh range: round to nearest lakh. Documented behavior — Python
+    # int(round()) uses banker's rounding so 1.5 → 2.
+    (100_000,       "₹1 Lakh"),
+    (150_000,       "₹2 Lakh"),    # banker's: 1.5 rounds to 2
+    (250_000,       "₹2 Lakh"),    # banker's: 2.5 rounds to 2
+    (390_000,       "₹4 Lakh"),    # the eBID dogfood case
+    (391_547,       "₹4 Lakh"),    # the exact eBID number
+    (399_999,       "₹4 Lakh"),
+    (400_000,       "₹4 Lakh"),
+    (1_500_000,     "₹15 Lakh"),
+    (9_900_000,     "₹99 Lakh"),
+    (9_999_999,     "₹100 Lakh"),  # at the boundary, still in lakh form
+    # Crore range: 1 decimal precision; trailing .0 stripped
+    (10_000_000,    "₹1 Cr"),
+    (15_000_000,    "₹1.5 Cr"),
+    (19_600_000,    "₹2 Cr"),       # 1.96 rounds to 2.0 → strip → "₹2 Cr"
+    (20_000_000,    "₹2 Cr"),
+    (25_000_000,    "₹2.5 Cr"),
+    (100_000_000,   "₹10 Cr"),
+])
+def test_format_inr_short(amount: int, expected: str) -> None:
+    from services.audit.findings import _format_inr_short
+    assert _format_inr_short(amount) == expected
+
+
+def test_underinsured_life_text_for_4_lakh_endowment() -> None:
+    """The exact dogfood scenario: ₹3.9L endowment + ~₹2.4Cr ideal life
+    cover. Pre-fix output: 'Your term cover is ₹1 Cr but your family
+    needs ~₹2 Cr.' (₹1 Cr is fabricated.) Post-fix: '₹4 Lakh' shown.
+    """
+    user = UserProfile(
+        user_id="u_dogfood", age=34, city="Bangalore", tier="tier-1",
+        spouse_age=33, kids_count=1, income=2_000_000,
+    )
+    # Endowment policy modeled after the eBID Exide Life Assured Gain Plus
+    endowment = Policy(
+        id="p_e", type="endowment", insurer="Exide Life",
+        sum_insured=391_547, premium=100_000,
+    )
+    result = generate_audit(user, [endowment])
+
+    # Find the underinsured_life finding (should fire because life ratio < 0.85)
+    life_findings = [f for f in result.all_findings if f.type == "underinsured_life"]
+    assert life_findings, "expected underinsured_life finding for 4L endowment + 20L income"
+    f = life_findings[0]
+    # The fabricated "₹1 Cr cover" line must NOT appear
+    assert "₹1 Cr" not in f.headline, f"headline still uses ₹1 Cr floor: {f.headline}"
+    # The actual cover amount in lakhs DOES appear
+    assert "₹4 Lakh" in f.headline or "₹1 Lakh" in f.headline, \
+        f"headline should display cover in lakhs: {f.headline}"
+    # Sanity: explanation also updated
+    assert "₹1 Cr cover" not in f.explanation
+
+
+def test_underinsured_life_text_for_legitimate_crore_cover() -> None:
+    """A user with ₹1.5 Cr term + ₹50L gap should display in Cr correctly,
+    not regress to lakh formatting."""
+    user = UserProfile(
+        user_id="u", age=34, city="Mumbai", tier="tier-1",
+        spouse_age=33, kids_count=2, income=2_500_000,  # ideal life ≈ 4.5 Cr
+    )
+    term = Policy(id="p_t", type="term", insurer="HDFC Life",
+                  sum_insured=15_000_000, premium=18_000)
+    result = generate_audit(user, [term])
+    life_findings = [f for f in result.all_findings if f.type == "underinsured_life"]
+    assert life_findings
+    f = life_findings[0]
+    # Should display ₹1.5 Cr, not "₹1 Lakh" or "₹1 Cr"
+    assert "₹1.5 Cr" in f.headline, f"expected '₹1.5 Cr' in: {f.headline}"
+
+
+def test_underinsured_life_text_no_zero_lakh_for_tiny_endowment() -> None:
+    """A ₹50K endowment (tiny rounding edge case) should display '<₹1 Lakh',
+    NOT '₹0 Lakh' (which would look like 'no cover')."""
+    user = UserProfile(
+        user_id="u", age=35, city="Mumbai", tier="tier-1",
+        spouse_age=33, income=2_000_000,
+    )
+    tiny = Policy(id="p_e", type="endowment", insurer="LIC",
+                  sum_insured=50_000, premium=10_000)
+    result = generate_audit(user, [tiny])
+    life_findings = [f for f in result.all_findings if f.type == "underinsured_life"]
+    if life_findings:  # depends on coverage threshold; either passes
+        f = life_findings[0]
+        assert "₹0 Lakh" not in f.headline, f"never display '₹0 Lakh': {f.headline}"

@@ -120,3 +120,10 @@ credentials.json
 # .env.example files DO get committed (they're templates).
 !.env.example
 !backend/.env.example
+
+# User-uploaded insurance PDFs (PII — policyholder name, policy number,
+# sum insured, premium). These should never reach git history. They land
+# at the repo root during local dogfooding (smoke tests, parser scripts).
+*.pdf
+# But DO check in spec docs and any sample PDFs we explicitly want versioned
+!docs/**/*.pdf

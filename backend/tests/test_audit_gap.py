@@ -158,3 +158,90 @@ def test_score_clamped_at_zero() -> None:
               age=40, family_ci_history=True, self_owned_home=True)
     b = gap.score(user, [])
     assert b.value >= 0
+
+
+# ==========================================================================
+# Bug C regression — endowment SI floor for term_life requirement
+# ==========================================================================
+# Surfaced via real-policy dogfood: a ₹3.9L Exide Life endowment falsely
+# satisfied the term_life gap for a user earning ₹15-20L. Engine then
+# reported "you have life cover" when the death benefit was ~25% of one
+# year's income — not meaningful protection.
+#
+# Floor: endowment/ULIP only counts if SI >= 5x annual income
+# (ENDOWMENT_TERM_LIFE_FLOOR_X in gap.py).
+
+def test_term_life_gap_endowment_below_5x_income_does_not_satisfy() -> None:
+    """₹4L endowment + ₹15L income → 4L < 5×15L = 75L → gap fires."""
+    user = _u(spouse_age=29, kids_count=1, income=1_500_000)
+    tiny_endowment = Policy(id="e", type="endowment", insurer="Exide Life",
+                            sum_insured=400_000, premium=100_000)
+    b = gap.score(user, [_hp("health"), tiny_endowment])
+    types = {m["type"] for m in b.details["missing"]}
+    assert "term_life" in types, (
+        "₹4L endowment vs ₹15L income should NOT satisfy term_life — "
+        "missing entries should include 'term_life'"
+    )
+
+
+def test_term_life_gap_real_term_policy_always_satisfies() -> None:
+    """₹1Cr term policy + ₹15L income → term_life gap satisfied (no SI floor for type=term)."""
+    user = _u(spouse_age=29, kids_count=1, income=1_500_000)
+    real_term = Policy(id="t", type="term", insurer="HDFC Life",
+                       sum_insured=10_000_000, premium=14_500)
+    b = gap.score(user, [_hp("health"), real_term])
+    types = {m["type"] for m in b.details["missing"]}
+    assert "term_life" not in types
+
+
+def test_term_life_gap_huge_endowment_above_5x_satisfies() -> None:
+    """₹2Cr endowment + ₹15L income → 2Cr > 5×15L = 75L → satisfies under
+    current rule. DEBATABLE — endowment is product-design-incorrect for
+    term-life replacement even at high SI. See gap.py docstring for the
+    'endowment NEVER satisfies' stricter alternative we may adopt.
+    If the rule tightens, this test flips and should be inverted.
+    """
+    user = _u(spouse_age=29, kids_count=1, income=1_500_000)
+    huge_endowment = Policy(id="e", type="endowment", insurer="HDFC Life",
+                            sum_insured=20_000_000, premium=200_000)
+    b = gap.score(user, [_hp("health"), huge_endowment])
+    types = {m["type"] for m in b.details["missing"]}
+    # CURRENT rule: 2Cr >= 5×15L → satisfies
+    assert "term_life" not in types
+
+
+def test_term_life_gap_endowment_with_unknown_si_does_not_satisfy() -> None:
+    """A wording-only or partially-parsed endowment with sum_insured=None
+    cannot be evaluated against the floor — defensive default is to NOT
+    credit it (treat as unknown protection)."""
+    user = _u(spouse_age=29, kids_count=1, income=1_500_000)
+    unknown_si = Policy(id="e", type="endowment", insurer="LIC",
+                        sum_insured=None, premium=None)
+    b = gap.score(user, [_hp("health"), unknown_si])
+    types = {m["type"] for m in b.details["missing"]}
+    assert "term_life" in types, "endowment with unknown SI must NOT satisfy term_life"
+
+
+def test_term_life_gap_endowment_when_income_is_zero_does_satisfy() -> None:
+    """If user hasn't filled out the money stage (income=0), the 5x floor
+    can't be applied — fall back to permissive behavior (any endowment
+    counts) rather than penalizing data-incomplete users.
+    """
+    user = _u(spouse_age=29, kids_count=1, income=0)  # money stage skipped
+    endowment = Policy(id="e", type="endowment", insurer="LIC",
+                       sum_insured=400_000, premium=10_000)
+    b = gap.score(user, [_hp("health"), endowment])
+    types = {m["type"] for m in b.details["missing"]}
+    assert "term_life" not in types, (
+        "with unknown income (0), permissive default should let endowment satisfy"
+    )
+
+
+def test_term_life_gap_ulip_uses_same_floor_as_endowment() -> None:
+    """Same rule applies to ULIP — both are investment-disguised-as-insurance."""
+    user = _u(spouse_age=29, kids_count=1, income=1_500_000)
+    tiny_ulip = Policy(id="u", type="ulip", insurer="HDFC Life",
+                       sum_insured=400_000, premium=100_000)
+    b = gap.score(user, [_hp("health"), tiny_ulip])
+    types = {m["type"] for m in b.details["missing"]}
+    assert "term_life" in types

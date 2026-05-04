@@ -27,6 +27,7 @@ from services.audit.constants.csr_table import CSR_TABLE
 # ==========================================================================
 
 CANONICAL_INSURER_NAMES: Final[tuple[str, ...]] = (
+    # ---- Health insurers (18) ----
     "New India Assurance",
     "Go Digit Health",
     "Bajaj Allianz General",
@@ -45,6 +46,21 @@ CANONICAL_INSURER_NAMES: Final[tuple[str, ...]] = (
     "Future Generali",
     "Universal Sompo",
     "Shriram General",
+    # ---- Life insurers (11) — added 2026-05-04 from real-policy
+    # dogfood (Bug A in DOGFOOD_NOTES.md). Exide Life kept separate
+    # from HDFC Life despite the Jan-2023 merger because legacy
+    # pre-merger policies are still honored under the Exide brand.
+    "LIC",
+    "HDFC Life",
+    "ICICI Prudential Life",
+    "Max Life",
+    "Tata AIA Life",
+    "SBI Life",
+    "Bajaj Allianz Life",
+    "Aditya Birla Sun Life",
+    "Kotak Life",
+    "PNB MetLife",
+    "Exide Life",
 )
 
 
@@ -111,6 +127,48 @@ INSURER_ALIASES: Final[dict[str, str]] = {
     "universal sompo":    "Universal Sompo",
     # Shriram General
     "shriram":            "Shriram General",
+
+    # ---- Life insurers ----
+    # LIC — match longer phrases first so "LIC of India" resolves before
+    # any standalone "lic" prefix that might collide elsewhere.
+    "lic of india":           "LIC",
+    "life insurance corporation": "LIC",
+    "lic ":                   "LIC",  # padded to avoid matching "Public" etc.
+    # HDFC Life — distinct from "HDFC ERGO General" (health). Both have
+    # "hdfc" prefix so "hdfc life" must be ordered above the lone "hdfc"
+    # would be — but our matcher sorts long-first at lookup time so this
+    # is automatic.
+    "hdfc life":              "HDFC Life",
+    "hdfc standard life":     "HDFC Life",
+    # ICICI Prudential Life — distinct from "ICICI Lombard" (health)
+    "icici prudential":       "ICICI Prudential Life",
+    "icici pru":              "ICICI Prudential Life",
+    # Max Life
+    "max life":               "Max Life",
+    "max financial":          "Max Life",
+    # Tata AIA Life — distinct from "Tata AIG General" (health)
+    "tata aia":               "Tata AIA Life",
+    # SBI Life
+    "sbi life":               "SBI Life",
+    # Bajaj Allianz Life — distinct from "Bajaj Allianz General" (health)
+    "bajaj allianz life":     "Bajaj Allianz Life",
+    # Aditya Birla Sun Life — distinct from "Aditya Birla Health"
+    "aditya birla sun life":  "Aditya Birla Sun Life",
+    "absli":                  "Aditya Birla Sun Life",
+    "birla sun life":         "Aditya Birla Sun Life",
+    # Kotak Life
+    "kotak life":             "Kotak Life",
+    "kotak mahindra life":    "Kotak Life",
+    # PNB MetLife
+    "pnb metlife":            "PNB MetLife",
+    "metlife":                "PNB MetLife",
+    # Exide Life — kept separate from HDFC Life despite Jan-2023 merger
+    # so legacy policies still surface their original insurer name to the
+    # user. If/when the dataset confirms all Exide policies migrated,
+    # consider aliasing to HDFC Life.
+    "exide life":             "Exide Life",
+    "exide":                  "Exide Life",
+    "assured gain plus":      "Exide Life",  # Exide product line — distinguishing alias
 }
 
 

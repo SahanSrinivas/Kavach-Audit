@@ -143,6 +143,102 @@ def test_canonicalizer_fuzzy_matches(raw: str, expected: str) -> None:
     assert canonicalize_insurer(raw) == expected
 
 
+# ==========================================================================
+# Bug A regression — life insurers must canonicalize, not fall to _UNKNOWN
+# ==========================================================================
+
+@pytest.mark.parametrize("raw,expected", [
+    # LIC — multiple surface forms
+    ("LIC of India",                                "LIC"),
+    ("Life Insurance Corporation of India",         "LIC"),
+    ("LIC New Jeevan Anand Plan",                   "LIC"),
+    # HDFC Life — distinct from "HDFC ERGO General" (health)
+    ("HDFC Life Insurance Company Ltd",             "HDFC Life"),
+    ("HDFC Standard Life Insurance",                "HDFC Life"),
+    ("HDFC Life Click 2 Protect Plan",              "HDFC Life"),
+    # ICICI Prudential Life — distinct from "ICICI Lombard" (health)
+    ("ICICI Prudential Life Insurance",             "ICICI Prudential Life"),
+    ("ICICI Pru iProtect Smart",                    "ICICI Prudential Life"),
+    # Max Life
+    ("Max Life Insurance",                          "Max Life"),
+    ("Max Life Smart Term Plan Plus",               "Max Life"),
+    # Tata AIA Life — distinct from "Tata AIG General" (health)
+    ("Tata AIA Life Insurance",                     "Tata AIA Life"),
+    ("Tata AIA Sampoorna Raksha Supreme",           "Tata AIA Life"),
+    # SBI Life
+    ("SBI Life Insurance Company Limited",          "SBI Life"),
+    ("SBI Life eShield Next",                       "SBI Life"),
+    # Bajaj Allianz Life — distinct from "Bajaj Allianz General" (health)
+    ("Bajaj Allianz Life Insurance",                "Bajaj Allianz Life"),
+    ("Bajaj Allianz Life Smart Protect Goal",       "Bajaj Allianz Life"),
+    # Aditya Birla Sun Life — distinct from "Aditya Birla Health"
+    ("Aditya Birla Sun Life Insurance",             "Aditya Birla Sun Life"),
+    ("ABSLI DigiShield Plan",                       "Aditya Birla Sun Life"),
+    ("Birla Sun Life",                              "Aditya Birla Sun Life"),
+    # Kotak Life
+    ("Kotak Mahindra Life Insurance",               "Kotak Life"),
+    ("Kotak Life e-Term Plan",                      "Kotak Life"),
+    # PNB MetLife
+    ("PNB MetLife India Insurance",                 "PNB MetLife"),
+    ("PNB MetLife Mera Term Plan Plus",             "PNB MetLife"),
+    # Exide Life — kept separate from HDFC Life despite Jan-2023 merger
+    ("Exide Life Insurance",                        "Exide Life"),
+    ("Exide Life Assured Gain Plus",                "Exide Life"),  # the dogfood PDF that surfaced this bug
+])
+def test_canonicalizer_handles_life_insurers(raw: str, expected: str) -> None:
+    assert canonicalize_insurer(raw) == expected
+
+
+def test_every_life_insurer_has_csr_table_entry() -> None:
+    """Module-load assertion in canonical_vocabulary.py already enforces
+    this on import; this test makes the contract visible in pytest output.
+    Adds a per-insurer assertion so the failure message names the specific
+    insurer if a future commit drops a CSR row."""
+    from services.audit.constants.csr_table import CSR_TABLE
+    life_insurers = (
+        "LIC", "HDFC Life", "ICICI Prudential Life", "Max Life",
+        "Tata AIA Life", "SBI Life", "Bajaj Allianz Life",
+        "Aditya Birla Sun Life", "Kotak Life", "PNB MetLife", "Exide Life",
+    )
+    for name in life_insurers:
+        assert name in CSR_TABLE, (
+            f"life insurer {name!r} missing from CSR_TABLE — silent -15 "
+            f"deduction risk if any life-policy CSR scoring lands"
+        )
+
+
+def test_canonical_list_grew_to_29() -> None:
+    """Sanity check: 18 health + 11 life = 29 canonicals after Bug A fix."""
+    assert len(CANONICAL_INSURER_NAMES) == 29
+
+
+def test_health_and_life_HDFC_disambiguate() -> None:
+    """The trickiest disambiguation: 'HDFC Life Click 2 Protect' vs
+    'HDFC ERGO Optima Restore' — same parent brand, different subsidiaries
+    with different products. Canonicalizer must route each to the right
+    canonical name."""
+    assert canonicalize_insurer("HDFC Life Click 2 Protect Plan") == "HDFC Life"
+    assert canonicalize_insurer("HDFC ERGO Optima Restore Family Floater") == "HDFC ERGO General"
+
+
+def test_health_and_life_Tata_disambiguate() -> None:
+    """Same pattern: Tata AIA Life vs Tata AIG General."""
+    assert canonicalize_insurer("Tata AIA Life Sampoorna Raksha") == "Tata AIA Life"
+    assert canonicalize_insurer("Tata AIG MediCare Plus") == "Tata AIG General"
+
+
+def test_health_and_life_Bajaj_disambiguate() -> None:
+    """Same pattern: Bajaj Allianz Life vs Bajaj Allianz General."""
+    assert canonicalize_insurer("Bajaj Allianz Life Smart Protect Goal") == "Bajaj Allianz Life"
+    assert canonicalize_insurer("Bajaj Allianz General Health Care Supreme") == "Bajaj Allianz General"
+
+
+def test_health_and_life_AdityaBirla_disambiguate() -> None:
+    """Aditya Birla Sun Life vs Aditya Birla Health."""
+    assert canonicalize_insurer("Aditya Birla Sun Life DigiShield Plan") == "Aditya Birla Sun Life"
+    assert canonicalize_insurer("Aditya Birla Activ Health Platinum") == "Aditya Birla Health"
+
+
 @pytest.mark.parametrize("raw", [
     "Some Random Insurance Pvt Ltd",
     "Made Up Insurer Co.",
