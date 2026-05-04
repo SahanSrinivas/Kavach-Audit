@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Plus } from "lucide-react";
 import PolicyCard from "./PolicyCard";
+import SectionError from "./SectionError";
 
 // Zone C — list of the user's policies with a header count + Add button.
 // Filters audit findings down to each policy via related_policy_id so
@@ -9,12 +10,40 @@ import PolicyCard from "./PolicyCard";
 //
 // onSelectPolicy makes each card tappable; the parent uses it to
 // switch into the per-policy detail view.
+//
+// error/onRetry: when the /policies fetch fails independently of the
+// rest of the dashboard, this section renders a SectionError block
+// instead of the list. The header "N active" stays hidden in that
+// state — we don't know N if the fetch failed.
 export default function PoliciesList({
   policies,
   findings = [],
   onAddPolicy,
   onSelectPolicy,
+  error = null,
+  retrying = false,
+  onRetry,
 }) {
+  if (error) {
+    return (
+      <motion.section
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        data-testid="dashboard-policies"
+      >
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#13A8A8] mb-4">
+          Your policies
+        </p>
+        <SectionError
+          testId="policies-error"
+          message="Couldn't load your policies."
+          retrying={retrying}
+          onRetry={onRetry}
+        />
+      </motion.section>
+    );
+  }
   return (
     <motion.section
       initial={{ opacity: 0, y: 10 }}

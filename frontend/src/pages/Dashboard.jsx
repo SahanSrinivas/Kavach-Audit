@@ -11,11 +11,12 @@ import PoliciesList from "../components/dashboard/PoliciesList";
 import AlertsInbox from "../components/dashboard/AlertsInbox";
 import QuickActions from "../components/dashboard/QuickActions";
 import DashboardEmptyState from "../components/dashboard/DashboardEmptyState";
+import DashboardErrorState from "../components/dashboard/DashboardErrorState";
 import AddMemberModal from "../components/dashboard/AddMemberModal";
 import PolicyDetailView from "../components/dashboard/PolicyDetailView";
 import DashboardSkeleton from "../components/dashboard/DashboardSkeleton";
+import useDashboardData from "../hooks/useDashboardData";
 import { useAuth } from "../lib/auth";
-import api from "../lib/api";
 
 // Portfolio-view "Your shield" hero copy keyed off the gap score band.
 function gapHeadline(gap) {
@@ -36,65 +37,41 @@ function gapSublabel(gap) {
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [audit, setAudit] = useState(null);
-  const [policies, setPolicies] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [showAddMember, setShowAddMember] = useState(false);
 
-  // "portfolio" or a policy.id. Defaults to portfolio; we auto-jump
-  // to the single policy on first load when the user has exactly one
+  const hasAudit = user?.has_audit;
+  const { audit, policies, alerts, retry } = useDashboardData(hasAudit);
+
+  // "portfolio" or a policy.id. Defaults to portfolio; we auto-jump to
+  // the single policy on first load when the user has exactly one
   // (single-policy users would never see useful audit-level cost or
   // gap scores otherwise).
   const [selectedPolicyId, setSelectedPolicyId] = useState("portfolio");
   const initialJumpedRef = useRef(false);
 
-  const hasAudit = user?.has_audit;
-
-  useEffect(() => {
-    if (!hasAudit) {
-      setLoading(false);
-      return;
-    }
-    (async () => {
-      try {
-        const [a, p, al] = await Promise.all([
-          api.get("/audit/latest"),
-          api.get("/policies"),
-          api.get("/alerts"),
-        ]);
-        setAudit(a.data?.data?.audit || null);
-        setPolicies(p.data?.data?.policies || []);
-        setAlerts(al.data?.data?.alerts || []);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [hasAudit]);
-
   // First-load auto-jump for single-policy users. Ref-guarded so a user
   // who manually navigates back to portfolio doesn't get yanked back in.
   useEffect(() => {
     if (initialJumpedRef.current) return;
-    if (loading) return;
-    if (policies.length === 1) {
-      setSelectedPolicyId(policies[0].id);
+    if (policies.loading) return;
+    if (policies.data.length === 1) {
+      setSelectedPolicyId(policies.data[0].id);
     }
     initialJumpedRef.current = true;
-  }, [loading, policies]);
+  }, [policies.loading, policies.data]);
 
   const onPortfolio = selectedPolicyId === "portfolio";
   const selectedPolicy = !onPortfolio
-    ? policies.find((p) => p.id === selectedPolicyId)
+    ? policies.data.find((p) => p.id === selectedPolicyId)
     : null;
 
   // Edge: selected policy got deleted in another tab. Fall back to
   // portfolio rather than rendering an empty detail view.
   useEffect(() => {
-    if (!onPortfolio && policies.length > 0 && !selectedPolicy) {
+    if (!onPortfolio && policies.data.length > 0 && !selectedPolicy) {
       setSelectedPolicyId("portfolio");
     }
-  }, [onPortfolio, policies, selectedPolicy]);
+  }, [onPortfolio, policies.data, selectedPolicy]);
 
   const fixFinding = (finding) => {
     navigate(`/recommendations?finding_id=${finding.id}`);
@@ -129,48 +106,58 @@ export default function Dashboard() {
           </div>
         )}
 
-        {hasAudit && loading && <DashboardSkeleton />}
+        {hasAudit && audit.loading && <DashboardSkeleton />}
 
-        {hasAudit && !loading && audit && !onPortfolio && selectedPolicy && (
+        {hasAudit && !audit.loading && audit.error && (
+          <DashboardErrorState onRetry={retry.audit} />
+        )}
+
+        {hasAudit && !audit.loading && !audit.error && audit.data && !onPortfolio && selectedPolicy && (
           <PolicyDetailView
             policy={selectedPolicy}
-            audit={audit}
+            audit={audit.data}
             onBack={() => setSelectedPolicyId("portfolio")}
             onFixFinding={fixFinding}
           />
         )}
 
-        {hasAudit && !loading && audit && onPortfolio && (
+        {hasAudit && !audit.loading && !audit.error && audit.data && onPortfolio && (
           <div className="space-y-8" data-testid="dashboard-filled-state">
             <HeroScore
               eyebrow="Your shield"
-              value={audit.scores?.gap ?? null}
-              label={gapHeadline(audit.scores?.gap)}
-              sublabel={gapSublabel(audit.scores?.gap)}
+              value={audit.data.scores?.gap ?? null}
+              label={gapHeadline(audit.data.scores?.gap)}
+              sublabel={gapSublabel(audit.data.scores?.gap)}
             />
             <ScoreTiles
-              scores={audit.scores || {}}
-              breakdowns={audit.breakdowns || {}}
+              scores={audit.data.scores || {}}
+              breakdowns={audit.data.breakdowns || {}}
             />
             <TopFindingCard
-              finding={audit.findings?.[0] || null}
+              finding={audit.data.findings?.[0] || null}
               onFix={fixFinding}
             />
             <CoverageByType
-              rows={audit.portfolio?.by_type || []}
+              rows={audit.data.portfolio?.by_type || []}
               onViewAudit={() => navigate("/audit/report")}
             />
             <PoliciesList
-              policies={policies}
-              findings={audit.all_findings || []}
+              policies={policies.data}
+              findings={audit.data.all_findings || []}
               onAddPolicy={() => navigate("/audit/policies")}
               onSelectPolicy={setSelectedPolicyId}
+              error={policies.error}
+              retrying={policies.loading}
+              onRetry={retry.policies}
             />
             <AlertsInbox
-              alerts={alerts}
+              alerts={alerts.data}
               onAlertClick={(a) => {
                 if (a.target_url) navigate(a.target_url);
               }}
+              error={alerts.error}
+              retrying={alerts.loading}
+              onRetry={retry.alerts}
             />
             <QuickActions onAddMember={() => setShowAddMember(true)} />
           </div>
