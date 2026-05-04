@@ -1,10 +1,12 @@
 import React from "react";
 import { Button } from "./ui/button";
 
-// Bottom-anchored CTA on mobile, inline on desktop.
+// Bottom-anchored CTA on mobile (full-width sticky bar), inline + horizontally
+// centered on desktop (the Continue button sits below the form, centered with
+// the form area rather than left-aligned to its container's edge).
 export default function BottomCTA({ onClick, disabled, children, testId = "bottom-cta", loading = false }) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC] to-transparent z-30 md:static md:bg-transparent md:p-0 md:mt-10 kv-safe-bottom md:pb-0">
+    <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#F8FAFC] via-[#F8FAFC] to-transparent z-30 md:static md:bg-transparent md:p-0 md:mt-6 md:flex md:justify-center kv-safe-bottom md:pb-0">
       <Button
         data-testid={testId}
         onClick={onClick}
