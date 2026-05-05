@@ -28,6 +28,7 @@ from routers.audit_router import router as audit_router  # noqa: E402
 from routers.recommendations_router import router as recommendations_router  # noqa: E402
 from routers.alerts_router import router as alerts_router  # noqa: E402
 from routers.family_router import router as family_router  # noqa: E402
+from routers.life_router import router as life_router  # noqa: E402
 
 VERSION = "0.2.0"
 BUILD_TIME = datetime.now(timezone.utc).isoformat()
@@ -91,6 +92,7 @@ api_router.include_router(audit_router)
 api_router.include_router(recommendations_router)
 api_router.include_router(alerts_router)
 api_router.include_router(family_router)
+api_router.include_router(life_router)
 app.include_router(api_router)
 
 

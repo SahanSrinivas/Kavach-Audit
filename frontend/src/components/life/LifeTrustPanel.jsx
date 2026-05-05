@@ -1,6 +1,5 @@
 import React from "react";
 import { Info } from "lucide-react";
-import { LIFE_STATS_FY_LABEL, LIFE_INSURER_STATS_SAMPLE } from "@/data/lifeInsurerStats";
 import { cn } from "@/lib/utils";
 
 function Metric({ label, value, suffix = "", hint }) {
@@ -30,15 +29,21 @@ function Metric({ label, value, suffix = "", hint }) {
 
 /**
  * IRDAI-aligned multi-metric panel (definitions surfaced in UI).
- * Insurer list is passed in for testing; defaults to sample bundle.
  */
 export default function LifeTrustPanel({
   selectedId,
   onSelectId,
-  rows = LIFE_INSURER_STATS_SAMPLE,
+  rows = [],
+  fyLabel = "",
+  loading = false,
+  error = null,
+  selectedFy,
+  onSelectFy,
+  availableFys = [],
   className,
 }) {
   const selected = rows.find((r) => r.id === selectedId) ?? rows[0];
+  const showFyPicker = Array.isArray(availableFys) && availableFys.length > 1 && onSelectFy;
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -50,28 +55,64 @@ export default function LifeTrustPanel({
             settlement, speed, persistency, and solvency together.
           </p>
         </div>
-        <div className="w-full sm:w-auto sm:min-w-[220px]">
-          <label htmlFor="life-insurer-select" className="sr-only">
-            Select insurer
-          </label>
-          <select
-            id="life-insurer-select"
-            value={selected?.id ?? ""}
-            onChange={(e) => onSelectId?.(e.target.value)}
-            className="w-full h-11 rounded-lg border border-[#E1E5EB] bg-white px-3 text-sm font-medium text-[#0B2545] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2"
-          >
-            {rows.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.shortName}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-2 w-full sm:w-auto sm:min-w-[220px]">
+          {showFyPicker ? (
+            <div>
+              <label htmlFor="life-fy-select" className="sr-only">
+                Financial year
+              </label>
+              <select
+                id="life-fy-select"
+                value={selectedFy ?? ""}
+                onChange={(e) => onSelectFy?.(e.target.value)}
+                className="w-full h-10 rounded-lg border border-[#E1E5EB] bg-white px-3 text-xs font-semibold text-[#475569] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8]"
+              >
+                {availableFys.map((fy) => (
+                  <option key={fy} value={fy}>
+                    FY {fy.replace("-", "–")}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          <div>
+            <label htmlFor="life-insurer-select" className="sr-only">
+              Select insurer
+            </label>
+            <select
+              id="life-insurer-select"
+              value={selected?.id ?? ""}
+              onChange={(e) => onSelectId?.(e.target.value)}
+              disabled={loading || !!error || rows.length === 0}
+              className="w-full h-11 rounded-lg border border-[#E1E5EB] bg-white px-3 text-sm font-medium text-[#0B2545] shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2 disabled:opacity-50"
+            >
+              {rows.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.shortName}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
-      <p className="text-xs text-[#94A3B8]">{LIFE_STATS_FY_LABEL}</p>
+      <p className="text-xs text-[#94A3B8]">{fyLabel || "Loading FY label…"}</p>
 
-      {selected ? (
+      {error ? (
+        <p className="text-sm text-[#B22222]" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-pulse">
+          {[1, 2, 3, 4, 5].map((k) => (
+            <div key={k} className="h-20 rounded-xl bg-[#E1E5EB]/60" />
+          ))}
+        </div>
+      ) : null}
+
+      {!loading && selected ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <Metric
             label="Death claim settlement ratio"
@@ -109,9 +150,8 @@ export default function LifeTrustPanel({
       <div className="rounded-xl border border-[#E1E5EB] bg-white p-4 text-xs text-[#64748B] leading-relaxed">
         <p className="font-semibold text-[#0B2545]">Disclaimer</p>
         <p className="mt-1">
-          Kavachly shows educational summaries. Figures here are sample placeholders for UI until automated ingest from
-          IRDAI / insurer public disclosure runs each financial year. Do not use this screen alone to buy or switch
-          policies.
+          Kavachly shows educational summaries from ingested FY JSON packs (see data/life/). Replace packs with your own
+          IRDAI scrape for production accuracy. Do not use this screen alone to buy or switch policies.
         </p>
       </div>
     </div>

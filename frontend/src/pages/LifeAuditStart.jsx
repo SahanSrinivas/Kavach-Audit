@@ -1,16 +1,120 @@
-import React, { useId, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useId, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, FileText, Upload } from "lucide-react";
+import { ArrowRight, FileText, Loader2, Upload } from "lucide-react";
+import { toast } from "sonner";
 import Header from "../components/Header";
 import LifeTrustPanel from "../components/life/LifeTrustPanel";
-import { LIFE_INSURER_STATS_SAMPLE } from "@/data/lifeInsurerStats";
+import { fetchLifeStatsBundle, fetchLifeStatsIndex, normalizeInsurerRow } from "@/lib/lifeStats";
+import api from "@/lib/api";
+
+const SCHEDULE_STORAGE_KEY = "kavachly_life_schedule_v1";
 
 export default function LifeAuditStart() {
   const formId = useId();
-  const [insurerId, setInsurerId] = useState(LIFE_INSURER_STATS_SAMPLE[0]?.id ?? "");
+  const navigate = useNavigate();
+  const [insurerId, setInsurerId] = useState("");
+  const [rows, setRows] = useState([]);
+  const [fyLabel, setFyLabel] = useState("");
+  const [availableFys, setAvailableFys] = useState([]);
+  const [selectedFy, setSelectedFy] = useState("");
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+
   const [cisFile, setCisFile] = useState(null);
   const [bondFile, setBondFile] = useState(null);
+  const [extracting, setExtracting] = useState(false);
+
+  const applyBundle = (bundle, fyKey) => {
+    const normalized = (bundle.insurers || []).map(normalizeInsurerRow);
+    setRows(normalized);
+    setFyLabel(bundle.fyLabel || `FY ${fyKey}`);
+    setInsurerId((prev) => {
+      if (normalized.some((r) => r.id === prev)) return prev;
+      return normalized[0]?.id ?? "";
+    });
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const index = await fetchLifeStatsIndex();
+        const fys = index.availableFys || [];
+        const def = index.defaultFy || fys[0];
+        if (cancelled) return;
+        setAvailableFys(fys);
+        setSelectedFy(def);
+        const bundle = await fetchLifeStatsBundle(def);
+        if (cancelled) return;
+        applyBundle(bundle, def);
+      } catch (e) {
+        if (!cancelled) {
+          setStatsError(e?.message || "Could not load life insurer statistics.");
+          setRows([]);
+        }
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const onFyChange = async (fy) => {
+    setSelectedFy(fy);
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const bundle = await fetchLifeStatsBundle(fy);
+      applyBundle(bundle, fy);
+    } catch (e) {
+      toast.error(e?.message || "Failed to load FY bundle.");
+      setStatsError(e?.message || "FY load failed.");
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const canContinue = cisFile && bondFile && !extracting;
+
+  const handleContinue = async () => {
+    if (!cisFile || !bondFile) return;
+    setExtracting(true);
+    try {
+      const fd = new FormData();
+      fd.append("cis", cisFile);
+      fd.append("bond", bondFile);
+      fd.append("insurer_id", insurerId || "");
+      const res = await api.post("/life/extract", fd);
+      const payload = res.data?.data;
+      if (!res.data?.success || !payload) {
+        throw new Error(res.data?.error || "Extraction failed.");
+      }
+      try {
+        sessionStorage.setItem(SCHEDULE_STORAGE_KEY, JSON.stringify(payload));
+      } catch (err) {
+        toast.error("Could not save results in this browser session.");
+        return;
+      }
+      toast.success("Life Schedule extracted — review the fields.");
+      navigate("/audit/life/schedule");
+    } catch (e) {
+      const detail = e.response?.data?.detail;
+      const msg =
+        typeof detail === "string"
+          ? detail
+          : Array.isArray(detail)
+            ? detail.map((d) => d.msg || d).join(", ")
+            : e.message;
+      toast.error(msg || "Could not extract from PDFs. Use text-based PDFs if possible.");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-gradient-to-br from-[#0B2545]/[0.04] via-[#F8FAFC] to-[#13A8A8]/[0.06]">
@@ -36,7 +140,17 @@ export default function LifeAuditStart() {
           </p>
 
           <div className="mt-10 rounded-2xl border border-[#E1E5EB] bg-white p-5 sm:p-6 shadow-sm">
-            <LifeTrustPanel selectedId={insurerId} onSelectId={setInsurerId} />
+            <LifeTrustPanel
+              selectedId={insurerId}
+              onSelectId={setInsurerId}
+              rows={rows}
+              fyLabel={fyLabel}
+              loading={statsLoading}
+              error={statsError}
+              selectedFy={selectedFy}
+              onSelectFy={onFyChange}
+              availableFys={availableFys}
+            />
           </div>
 
           <section className="mt-12" aria-labelledby={`${formId}-docs`}>
@@ -44,8 +158,8 @@ export default function LifeAuditStart() {
               Bring your issued documents
             </h2>
             <p className="mt-2 text-sm text-[#64748B] leading-relaxed">
-              Upload PDFs or clear photos. Parsing &amp; structured &ldquo;Life Schedule&rdquo; extraction ships next;
-              we store filenames locally in this beta screen only.
+              Upload PDFs (text-based work best). We extract a structured Life Schedule using on-device text heuristics on
+              the server—no LLM in this path.
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col rounded-xl border-2 border-dashed border-[#E1E5EB] bg-[#F8FAFC] p-4 cursor-pointer hover:border-[#13A8A8]/50 transition-colors">
@@ -56,13 +170,13 @@ export default function LifeAuditStart() {
                 <span className="mt-2 text-xs text-[#64748B]">IRDAI-mandated simple-language summary</span>
                 <input
                   type="file"
-                  accept="application/pdf,image/*"
+                  accept="application/pdf"
                   className="sr-only"
                   onChange={(e) => setCisFile(e.target.files?.[0] ?? null)}
                 />
-                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#13A8A8]">
-                  <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                  {cisFile ? cisFile.name : "Choose file"}
+                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#13A8A8] break-all">
+                  <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  {cisFile ? cisFile.name : "Choose PDF"}
                 </span>
               </label>
               <label className="flex flex-col rounded-xl border-2 border-dashed border-[#E1E5EB] bg-[#F8FAFC] p-4 cursor-pointer hover:border-[#13A8A8]/50 transition-colors">
@@ -73,13 +187,13 @@ export default function LifeAuditStart() {
                 <span className="mt-2 text-xs text-[#64748B]">Issued contract after underwriting</span>
                 <input
                   type="file"
-                  accept="application/pdf,image/*"
+                  accept="application/pdf"
                   className="sr-only"
                   onChange={(e) => setBondFile(e.target.files?.[0] ?? null)}
                 />
-                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#13A8A8]">
-                  <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                  {bondFile ? bondFile.name : "Choose file"}
+                <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#13A8A8] break-all">
+                  <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  {bondFile ? bondFile.name : "Choose PDF"}
                 </span>
               </label>
             </div>
@@ -88,15 +202,24 @@ export default function LifeAuditStart() {
           <div className="mt-10 flex flex-col sm:flex-row gap-3 sm:items-center">
             <button
               type="button"
-              disabled
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0B2545]/40 px-6 text-white font-semibold text-sm cursor-not-allowed"
-              title="Extraction pipeline coming next"
+              disabled={!canContinue}
+              onClick={handleContinue}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0B2545] px-6 text-white font-semibold text-sm shadow-sm hover:bg-[#0B2545]/90 transition-colors disabled:bg-[#0B2545]/40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2"
             >
-              Continue to Life Schedule
-              <ArrowRight className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
+              {extracting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  Extracting…
+                </>
+              ) : (
+                <>
+                  Continue to Life Schedule
+                  <ArrowRight className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
+                </>
+              )}
             </button>
             <p className="text-xs text-[#64748B] sm:max-w-xs">
-              Button activates when CIS/bond extraction is wired to the audit engine (see spec).
+              Requires both PDFs and a running API ({process.env.REACT_APP_BACKEND_URL || "set REACT_APP_BACKEND_URL"}).
             </p>
           </div>
 

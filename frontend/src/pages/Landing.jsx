@@ -29,6 +29,17 @@ import {
 import { cn } from "@/lib/utils";
 
 const NAV_SHOW_AFTER_PX = 600;
+const LANDING_AUDIT_TAB_KEY = "kavachly_landing_audit_tab";
+
+function readStoredAuditTab() {
+  try {
+    const v = sessionStorage.getItem(LANDING_AUDIT_TAB_KEY);
+    if (v === "health" || v === "life") return v;
+  } catch (_) {
+    /* ignore */
+  }
+  return "health";
+}
 
 const fadeUp = (reduceMotion) => ({
   initial: reduceMotion ? false : { opacity: 0, y: 16 },
@@ -236,8 +247,16 @@ export default function Landing() {
   const [showStickyNav, setShowStickyNav] = useState(false);
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
-  const [auditTab, setAuditTab] = useState("health");
+  const [auditTab, setAuditTab] = useState(readStoredAuditTab);
   const auditEntryPath = auditTab === "life" ? "/audit/life/start" : "/audit/start";
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(LANDING_AUDIT_TAB_KEY, auditTab);
+    } catch (_) {
+      /* ignore */
+    }
+  }, [auditTab]);
 
   const onScrollNav = useCallback(() => {
     setShowStickyNav(window.scrollY > NAV_SHOW_AFTER_PX);

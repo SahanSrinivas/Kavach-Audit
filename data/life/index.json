@@ -1,0 +1,10 @@
+{
+  "defaultFy": "2023-24",
+  "availableFys": ["2023-24"],
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-04T12:00:00Z",
+  "sourcesNote": "Curated from IRDAI public reporting (death-claim experience, timeliness, persistency, solvency). Re-run scripts/ingest_life_stats.py after publishing a new FY pack; update data/life/fy-*.json and sync to frontend/public/data/life/.",
+  "dataFiles": {
+    "2023-24": "fy-2023-24.json"
+  }
+}
