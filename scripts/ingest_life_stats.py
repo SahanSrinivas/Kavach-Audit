@@ -2,8 +2,12 @@
 """
 Sync IRDAI-style life insurer stat packs from data/life/ to frontend/public/data/life/.
 
-Source of truth: repo-root data/life/index.json + data/life/fy-*.json
-Run after editing FY JSON or adding a new fy-YYYY-YY.json referenced from index.json.
+Source of truth: repo-root data/life/index.json + data/life/fy-*.json.
+Create or refresh FY JSON from a filled CSV:
+
+  python scripts/build_life_fy_json.py --fy 2023-24 --csv data/life/source_templates/insurers_fy_template.csv
+
+Then run this script. See docs/LIFE_STATS_QA_CHECKLIST.md.
 
 Usage:
   python scripts/ingest_life_stats.py

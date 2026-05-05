@@ -158,6 +158,7 @@ def extract_life_schedule(
     plan, c_plan = _guess_product_name(merged)
     fl, c_fl = _detect_free_look(merged)
     nominee = _detect_nominee(merged)
+    c_nominee = 0.58 if nominee else 0.22
 
     schedule: dict[str, Any] = {
         "schemaVersion": 1,
@@ -186,6 +187,7 @@ def extract_life_schedule(
         "premiumFrequency": c_freq,
         "productName": c_plan,
         "freeLookDays": c_fl,
+        "nomineeSectionLikely": c_nominee,
         "overall": overall,
     }
 
@@ -193,9 +195,40 @@ def extract_life_schedule(
     if confidence["overall"] < 0.45:
         warnings.append("Low extraction confidence — please verify fields against your PDF.")
 
-    return {
+    out = {
         "lifeSchedule": schedule,
         "confidence": confidence,
         "warnings": warnings,
         "textChars": {"cis": len(cis_text or ""), "bond": len(bond_text or "")},
+        "fieldConfidenceUi": build_field_confidence_ui(confidence),
     }
+    return out
+
+
+def build_field_confidence_ui(confidence: dict[str, float]) -> list[dict[str, Any]]:
+    """Per-field labels, scores, and verify-PDF nudges for the UI."""
+    fields: list[tuple[str, str, bool]] = [
+        ("productName", "Product / plan", True),
+        ("sumAssuredInr", "Sum assured", True),
+        ("policyTermYears", "Policy term", True),
+        ("premiumPaymentTermYears", "Premium payment term", True),
+        ("modalPremiumInr", "Modal premium", True),
+        ("premiumFrequency", "Premium frequency", True),
+        ("freeLookDays", "Free-look period", True),
+        ("nomineeSectionLikely", "Nominee section (detected)", False),
+    ]
+    ui: list[dict[str, Any]] = []
+    for key, label, numeric in fields:
+        score = float(confidence.get(key, 0.0))
+        tier = "high" if score >= 0.55 else ("medium" if score >= 0.3 else "low")
+        ui.append(
+            {
+                "fieldKey": key,
+                "label": label,
+                "score": round(score, 2),
+                "tier": tier,
+                "verifyInPdf": tier != "high",
+                "numericField": numeric,
+            }
+        )
+    return ui

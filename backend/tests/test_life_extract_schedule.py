@@ -20,6 +20,7 @@ def test_sum_assured_and_term_from_plain_text():
     assert ls["sumAssuredInr"] == 10_000_000
     assert ls["policyTermYears"] == 35
     assert ls["premiumPaymentTermYears"] == 20
+    assert len(out.get("fieldConfidenceUi") or []) >= 8
 
 
 def test_nominee_flag():

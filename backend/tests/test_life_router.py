@@ -8,6 +8,7 @@ from pathlib import Path
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("USE_MOCKS", "true")
+os.environ.setdefault("DISABLE_RATE_LIMIT", "true")
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 if str(BACKEND_DIR) not in sys.path:
@@ -70,3 +71,12 @@ def test_extract_two_pdfs():
     payload = r.json()["data"]
     assert payload["lifeSchedule"]["sumAssuredInr"] == 5_000_000
     assert payload["meta"]["insurerId"] == "lic"
+    assert len(payload.get("fieldConfidenceUi") or []) >= 1
+
+
+def test_save_schedule_requires_auth():
+    r = _client().post(
+        "/api/life/schedules",
+        json={"lifeSchedule": {"schemaVersion": 1}, "confidence": {}},
+    )
+    assert r.status_code == 401

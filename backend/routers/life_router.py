@@ -1,4 +1,4 @@
-"""Life insurance: IRDAI stat packs + CIS/bond PDF extraction (heuristic, no LLM)."""
+"""Life insurance: IRDAI stat packs + CIS/bond PDF extraction + saved schedules."""
 
 from __future__ import annotations
 
@@ -8,16 +8,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from bson import ObjectId
+from bson.errors import InvalidId
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel, ConfigDict, Field
 
+from auth import get_current_user, verify_csrf
 from services.life.extract_schedule import extract_life_schedule
 from services.life.pdf_text import pdf_bytes_to_text
+from services.rate_limit import client_ip_from_request, life_extract_limiter
 
 logger = logging.getLogger("kavach.life")
 
 router = APIRouter(prefix="/life", tags=["life"])
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 LIFE_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "life"
 
 MAX_PDF_BYTES = 15 * 1024 * 1024
@@ -30,6 +34,12 @@ def _ok(data: dict[str, Any] | None = None) -> dict[str, Any]:
 def _load_json(path: Path) -> dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+async def _enforce_extract_rate_limit(request: Request) -> None:
+    ip = client_ip_from_request(request)
+    if not life_extract_limiter.check(ip):
+        raise HTTPException(status_code=429, detail="rate_limited")
 
 
 @router.get("/stats/index")
@@ -75,11 +85,13 @@ async def _require_pdf(upload: UploadFile, label: str) -> bytes:
 
 @router.post("/extract")
 async def extract_life_documents(
+    request: Request,
     cis: Optional[UploadFile] = File(None),
     bond: Optional[UploadFile] = File(None),
     insurer_id: str = Form(""),
+    _: None = Depends(_enforce_extract_rate_limit),
 ) -> dict[str, Any]:
-    """Extract a structured Life Schedule from CIS + policy bond PDFs (plain-text heuristics)."""
+    """Extract a structured Life Schedule from CIS + policy bond PDFs (text + optional OCR)."""
     if cis is None or bond is None:
         raise HTTPException(status_code=400, detail="cis_and_bond_required")
 
@@ -106,6 +118,8 @@ async def extract_life_documents(
             "bondFilename": bond.filename,
             "insurerId": hint,
             "extractedAt": datetime.now(timezone.utc).isoformat(),
+            "textCharsTotal": (result.get("textChars") or {}).get("cis", 0)
+            + (result.get("textChars") or {}).get("bond", 0),
         },
     }
     logger.info(
@@ -114,3 +128,89 @@ async def extract_life_documents(
         result.get("confidence", {}).get("overall"),
     )
     return _ok(payload)
+
+
+# ----- Persisted schedules (authenticated) -----
+
+
+class LifeScheduleSaveBody(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    life_schedule: dict[str, Any] = Field(alias="lifeSchedule")
+    confidence: dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    meta: dict[str, Any] = Field(default_factory=dict)
+    field_confidence_ui: list[dict[str, Any]] = Field(default_factory=list, alias="fieldConfidenceUi")
+
+
+@router.post("/schedules")
+async def save_life_schedule(
+    request: Request,
+    body: LifeScheduleSaveBody,
+    user: dict = Depends(get_current_user),
+    _: None = Depends(verify_csrf),
+) -> dict[str, Any]:
+    """Persist an extracted life schedule for the logged-in user."""
+    db = request.app.state.db
+    doc: dict[str, Any] = {
+        "user_id": user["user_id"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "life_schedule": body.life_schedule,
+        "confidence": body.confidence,
+        "warnings": body.warnings,
+        "meta": body.meta,
+        "field_confidence_ui": body.field_confidence_ui,
+    }
+    result = await db.life_schedules.insert_one(doc)
+    logger.info("life.schedule.saved user=%s id=%s", user["user_id"], result.inserted_id)
+    return _ok({"id": str(result.inserted_id)})
+
+
+@router.get("/schedules")
+async def list_life_schedules(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Recent saved life schedules for the current user."""
+    db = request.app.state.db
+    cursor = db.life_schedules.find({"user_id": user["user_id"]}).sort("created_at", -1).limit(25)
+    items: list[dict[str, Any]] = []
+    async for row in cursor:
+        items.append(
+            {
+                "id": str(row["_id"]),
+                "createdAt": row.get("created_at"),
+                "meta": row.get("meta") or {},
+                "overallConfidence": (row.get("confidence") or {}).get("overall"),
+            }
+        )
+    return _ok({"schedules": items})
+
+
+@router.get("/schedules/{schedule_id}")
+async def get_life_schedule(
+    request: Request,
+    schedule_id: str,
+    user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Load one saved schedule (must belong to the user)."""
+    try:
+        oid = ObjectId(schedule_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=400, detail="invalid_schedule_id") from None
+
+    db = request.app.state.db
+    row = await db.life_schedules.find_one({"_id": oid, "user_id": user["user_id"]})
+    if not row:
+        raise HTTPException(status_code=404, detail="schedule_not_found")
+
+    data = {
+        "id": str(row["_id"]),
+        "lifeSchedule": row.get("life_schedule"),
+        "confidence": row.get("confidence") or {},
+        "warnings": row.get("warnings") or [],
+        "meta": row.get("meta") or {},
+        "fieldConfidenceUi": row.get("field_confidence_ui") or [],
+        "createdAt": row.get("created_at"),
+    }
+    return _ok(data)

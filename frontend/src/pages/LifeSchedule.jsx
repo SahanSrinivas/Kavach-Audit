@@ -1,6 +1,10 @@
-import React, { useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { AlertCircle, CheckCircle2, HelpCircle } from "lucide-react";
 import Header from "../components/Header";
+import { useAuth } from "@/lib/auth";
+import api from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const SCHEDULE_STORAGE_KEY = "kavachly_life_schedule_v1";
 
@@ -17,21 +21,131 @@ function formatInr(n) {
   }
 }
 
+function FieldConfidenceBadge({ tier, score, verifyInPdf }) {
+  const label =
+    tier === "high" ? "High confidence" : tier === "medium" ? "Check PDF" : "Verify in PDF";
+  return (
+    <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2 shrink-0">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+          tier === "high" && "bg-[#0F7B4F]/12 text-[#0F7B4F]",
+          tier === "medium" && "bg-amber-100 text-amber-800",
+          tier === "low" && "bg-[#B22222]/10 text-[#B22222]",
+        )}
+      >
+        {tier === "high" ? (
+          <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
+        ) : verifyInPdf ? (
+          <HelpCircle className="w-3 h-3" aria-hidden="true" />
+        ) : (
+          <AlertCircle className="w-3 h-3" aria-hidden="true" />
+        )}
+        {label}
+      </span>
+      <span className="text-[10px] text-[#94A3B8] tabular-nums">{typeof score === "number" ? score.toFixed(2) : "—"}</span>
+    </div>
+  );
+}
+
 export default function LifeSchedule() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const scheduleId = searchParams.get("id");
+  const { user, loading: authLoading } = useAuth();
+  const [remote, setRemote] = useState(null);
+  const [remoteError, setRemoteError] = useState(null);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+
+  useEffect(() => {
+    if (!scheduleId || !user) {
+      setRemoteLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setRemoteError(null);
+    setRemoteLoading(true);
+    (async () => {
+      try {
+        const res = await api.get(`/life/schedules/${scheduleId}`);
+        if (!cancelled && res.data?.success) setRemote(res.data.data);
+      } catch {
+        if (!cancelled) setRemoteError("Could not load your saved schedule.");
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scheduleId, user]);
+
   const raw = useMemo(() => {
+    if (remote) {
+      return {
+        lifeSchedule: remote.lifeSchedule,
+        confidence: remote.confidence || {},
+        warnings: remote.warnings || [],
+        meta: remote.meta || {},
+        fieldConfidenceUi: remote.fieldConfidenceUi || [],
+      };
+    }
     try {
       const s = sessionStorage.getItem(SCHEDULE_STORAGE_KEY);
       return s ? JSON.parse(s) : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [remote]);
 
   const schedule = raw?.lifeSchedule;
   const confidence = raw?.confidence || {};
   const warnings = raw?.warnings || [];
   const meta = raw?.meta || {};
+  const uiByKey = useMemo(() => {
+    const fieldUiList = raw?.fieldConfidenceUi || [];
+    return Object.fromEntries(fieldUiList.map((x) => [x.fieldKey, x]));
+  }, [raw]);
+
+  if (scheduleId && !authLoading && !user) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col bg-[#F8FAFC]">
+        <Header />
+        <main className="flex-1 max-w-lg mx-auto px-6 pt-28 pb-16 text-center">
+          <h1 className="font-heading text-2xl font-bold text-[#0B2545]">Sign in to view this schedule</h1>
+          <p className="mt-3 text-sm text-[#64748B]">Saved schedules are tied to your Kavachly account.</p>
+          <Link to="/login" className="mt-8 inline-flex h-11 items-center rounded-xl bg-[#0B2545] px-6 text-sm font-semibold text-white">
+            Sign in
+          </Link>
+        </main>
+      </div>
+    );
+  }
+
+  if (scheduleId && user && remoteError) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col bg-[#F8FAFC]">
+        <Header />
+        <main className="flex-1 max-w-lg mx-auto px-6 pt-28 pb-16 text-center">
+          <p className="text-[#B22222] text-sm">{remoteError}</p>
+          <Link to="/audit/life/start" className="mt-6 inline-block text-[#13A8A8] font-semibold underline">
+            Run life audit again
+          </Link>
+        </main>
+      </div>
+    );
+  }
+
+  if (scheduleId && user && remoteLoading) {
+    return (
+      <div className="min-h-[100dvh] flex flex-col bg-[#F8FAFC]">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-6">
+          <p className="text-sm text-[#64748B]">Loading schedule…</p>
+        </main>
+      </div>
+    );
+  }
 
   if (!schedule) {
     return (
@@ -51,18 +165,20 @@ export default function LifeSchedule() {
     );
   }
 
-  const rows = [
-    { label: "Product / plan", value: schedule.productName || "—" },
-    { label: "Sum assured", value: formatInr(schedule.sumAssuredInr) },
-    { label: "Policy term", value: schedule.policyTermYears != null ? `${schedule.policyTermYears} years` : "—" },
+  const tableRows = [
+    { key: "productName", label: "Product / plan", value: schedule.productName || "—" },
+    { key: "sumAssuredInr", label: "Sum assured", value: formatInr(schedule.sumAssuredInr) },
+    { key: "policyTermYears", label: "Policy term", value: schedule.policyTermYears != null ? `${schedule.policyTermYears} years` : "—" },
     {
+      key: "premiumPaymentTermYears",
       label: "Premium payment term",
       value: schedule.premiumPaymentTermYears != null ? `${schedule.premiumPaymentTermYears} years` : "—",
     },
-    { label: "Modal premium (est.)", value: formatInr(schedule.modalPremiumInr) },
-    { label: "Premium frequency", value: schedule.premiumFrequency || "—" },
-    { label: "Free-look (days)", value: schedule.freeLookDays != null ? String(schedule.freeLookDays) : "—" },
+    { key: "modalPremiumInr", label: "Modal premium (est.)", value: formatInr(schedule.modalPremiumInr) },
+    { key: "premiumFrequency", label: "Premium frequency", value: schedule.premiumFrequency || "—" },
+    { key: "freeLookDays", label: "Free-look (days)", value: schedule.freeLookDays != null ? String(schedule.freeLookDays) : "—" },
     {
+      key: "nomineeSectionLikely",
       label: "Nominee section",
       value: schedule.nomineeSectionLikely ? "Likely present in text" : "Not detected",
     },
@@ -75,23 +191,40 @@ export default function LifeSchedule() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#13A8A8]">Life Schedule</p>
         <h1 className="mt-2 font-heading text-3xl font-black text-[#0B2545]">Extracted from your documents</h1>
         <p className="mt-2 text-sm text-[#64748B]">
-          Heuristic parse — verify against your CIS and bond. Overall confidence:{" "}
+          Heuristic parse — verify against your CIS and bond. Overall model confidence:{" "}
           <span className="font-semibold text-[#0B2545]">{confidence.overall ?? "—"}</span>
         </p>
 
+        <div className="mt-3 rounded-xl border border-[#E1E5EB] bg-white px-4 py-3 text-xs text-[#475569] leading-relaxed">
+          <strong className="text-[#0B2545]">Field badges:</strong> Green = stronger pattern match; amber/red = open your PDF and
+          confirm. Scores are internal hints, not legal precision.
+        </div>
+
         {meta.extractedAt ? (
-          <p className="mt-1 text-xs text-[#94A3B8]">Extracted at {new Date(meta.extractedAt).toLocaleString()}</p>
+          <p className="mt-2 text-xs text-[#94A3B8]">Extracted at {new Date(meta.extractedAt).toLocaleString()}</p>
         ) : null}
 
         <div className="mt-8 rounded-2xl border border-[#E1E5EB] bg-white shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.label} className="border-b border-[#E1E5EB] last:border-0">
-                  <th className="text-left font-medium text-[#64748B] px-4 py-3 w-[45%] align-top">{r.label}</th>
-                  <td className="text-[#0B2545] font-medium px-4 py-3">{r.value}</td>
-                </tr>
-              ))}
+              {tableRows.map((r) => {
+                const sc = confidence[r.key];
+                const ui = uiByKey[r.key] || {
+                  tier: (sc ?? 0) >= 0.55 ? "high" : (sc ?? 0) >= 0.3 ? "medium" : "low",
+                  score: typeof sc === "number" ? sc : 0,
+                  verifyInPdf: (sc ?? 0) < 0.55,
+                };
+                const tier = ui.tier || "low";
+                return (
+                  <tr key={r.key} className="border-b border-[#E1E5EB] last:border-0">
+                    <th className="text-left font-medium text-[#64748B] px-4 py-3 w-[38%] align-top">{r.label}</th>
+                    <td className="text-[#0B2545] font-medium px-2 py-3 align-top">{r.value}</td>
+                    <td className="px-3 py-3 align-top w-[30%]">
+                      <FieldConfidenceBadge tier={tier} score={ui.score} verifyInPdf={ui.verifyInPdf} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

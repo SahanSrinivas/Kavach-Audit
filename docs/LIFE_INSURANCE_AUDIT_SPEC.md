@@ -1,69 +1,65 @@
 # Life Insurance Audit — Product & Engineering Spec
 
-**Branch:** `insurance-page` (work continues here; merge to `main` when ready)  
-**Status:** FY JSON pipeline + trust panel from public data + PDF extraction (heuristic) + Life Schedule page + landing tab persistence  
+**Branch:** `insurance-page` (merge to `main` when ready)  
+**Status:** Trustworthy MVP slice — FY CSV→JSON pipeline, OCR-aware PDF text, rate limits, Mongo persistence (logged-in), field-confidence UX  
 **Last updated:** 2026-05-04
 
 ## 1. Purpose
 
-Deliver a **commission-neutral life insurance audit** parallel to health: **IRDAI-aligned multi-metric “trust” context** (from ingested FY JSON), then **CIS + policy bond** text extraction to a **Life Schedule**, with optional future overlap to the health audit.
+Deliver a **commission-neutral life insurance audit** parallel to health: **IRDAI-aligned multi-metric “trust” context** (from ingested FY JSON), then **CIS + policy bond** extraction to a **Life Schedule**, with optional future overlap to the health audit.
 
-## 2. What ships on this branch
+## 2. What ships
 
 | Item | Description |
 |------|-------------|
-| **FY stat pipeline** | Source of truth: `data/life/index.json` + `data/life/fy-*.json`. Sync to static hosting: `python scripts/ingest_life_stats.py` → copies into `frontend/public/data/life/`. |
-| **Trust panel (UI)** | `LifeAuditStart` loads index + selected FY bundle via `fetch` from `/data/life/...` (`@/lib/lifeStats`). |
-| **Backend stats API** | `GET /api/life/stats/index`, `GET /api/life/stats/{fy}` — reads the same JSON files under repo `data/life/` (for apps or debugging). |
-| **Extraction API** | `POST /api/life/extract` — multipart `cis` + `bond` (PDF only), optional `insurer_id`. PyMuPDF text + heuristic `extract_life_schedule()` (no LLM). |
-| **Life Schedule UI** | `/audit/life/schedule` reads `sessionStorage` key `kavachly_life_schedule_v1` populated after successful extract. |
-| **Landing persistence** | `sessionStorage` key `kavachly_landing_audit_tab` stores **Health** vs **Life** tab across refresh. |
+| **FY stat pipeline** | Source of truth: `data/life/index.json` + `data/life/fy-*.json`. Build from CSV: `python scripts/build_life_fy_json.py --fy YYYY-YY --csv path/to.csv`. Sync to CRA static: `python scripts/ingest_life_stats.py`. QA: `docs/LIFE_STATS_QA_CHECKLIST.md`. |
+| **Trust panel** | `LifeAuditStart` loads `/data/life/...` via `@/lib/lifeStats`. |
+| **Backend stats** | `GET /api/life/stats/index`, `GET /api/life/stats/{fy}`. |
+| **Extract** | `POST /api/life/extract` — PDFs only; PyMuPDF text + **OCR fallback** (pytesseract; requires **Tesseract** system binary). Heuristic `extract_life_schedule()` + **`fieldConfidenceUi`** for the UI. |
+| **Rate limits** | Sliding window per IP on `/extract` (default **12/min**, env `LIFE_EXTRACT_RATE_PER_MIN`). Set `DISABLE_RATE_LIMIT=true` for local tests. |
+| **Persistence** | `POST /api/life/schedules` (auth + CSRF) saves a schedule. `GET /api/life/schedules`, `GET /api/life/schedules/{id}`. Collection: `life_schedules`. |
+| **Life Schedule UI** | Per-field confidence badges; `?id=` loads saved doc for logged-in users; else `sessionStorage` `kavachly_life_schedule_v1`. |
+| **Landing tab** | `kavachly_landing_audit_tab` in `sessionStorage`. |
 
-## 3. Competitor landscape (typical vs Kavachly)
+## 3. OCR / deployment
 
-| Actor | What they usually optimise | What they typically lack | Kavachly (target) |
-|-------|---------------------------|--------------------------|-------------------|
-| Aggregators | Quotes, conversion | Post-issuance bond/CIS audit; neutral IRDAI context | Issued-policy extraction + multi-metric panel |
-| Insurer D2C | Premium pay | Cross-insurer benchmarks | FY packs + definitions in-app |
-| Banks / agents | Distribution | Independent CIS decode | Same |
+- **Python:** `pytesseract`, `Pillow` (see `backend/requirements.txt`).
+- **System:** install [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) (`brew install tesseract` on macOS, `apt install tesseract-ocr` on Debian). If Tesseract is missing, OCR is skipped; text-layer PDFs still work.
 
-## 4. Regulatory inputs (production data sources)
+## 4. Competitor landscape (short)
 
-Per FY JSON pack should cite **IRDAI Annual Report** / **Handbook on Indian Insurance Statistics** / **insurer public disclosures**. Replace placeholder narrative in `fy-*.json` `sources[]` when you paste real scrape metadata.
+| Actor | Gap we address |
+|-------|----------------|
+| Aggregators | Post-issuance truth, not quote funnels |
+| Insurer D2C | Cross-insurer FY context + document decode |
 
-Fields per insurer (current schema): death claim settlement, 30-day settlement, 13th/25th month persistency, solvency ratio.
+## 5. Operational checklist (new FY from IRDAI tables)
 
-## 5. Operational checklist (new FY)
-
-1. Add `data/life/fy-YYYY-YY.json` (copy prior FY as template; update numbers + `ingestedAt`).
-2. Reference it from `data/life/index.json` → `dataFiles` + `availableFys` + `defaultFy` as needed.
-3. Run `python scripts/ingest_life_stats.py` to refresh `frontend/public/data/life/`.
-4. Commit **both** `data/life/` and `frontend/public/data/life/` together.
-5. Smoke-test trust panel FY selector and disclaimer dates.
+1. Paste numbers into a CSV from `data/life/source_templates/insurers_fy_template.csv` (add rows for all insurers).
+2. `python scripts/build_life_fy_json.py --fy 2024-25 --csv your.csv --note "IRDAI AR table …"`.
+3. Update `data/life/index.json` (`dataFiles`, `availableFys`, `defaultFy`).
+4. `python scripts/ingest_life_stats.py`.
+5. Follow `docs/LIFE_STATS_QA_CHECKLIST.md` and commit `data/life/` + `frontend/public/data/life/`.
 
 ## 6. Extraction limitations
 
-- **PDF text layer required** — scanned images need OCR (not in this path).
-- **Heuristics** — confidence scores surface in UI; users must verify against originals.
-- **No authentication** on `/api/life/extract` today — add rate limits / auth if abused.
+- OCR quality depends on scan DPI and Tesseract; users should **verify** low-confidence fields (badges in UI).
+- `/extract` remains **public** but **rate-limited**; persistence requires **login**.
 
 ## 7. Engineering backlog
 
-1. Grievance normalization + per-lakh metrics when PIF is in the pack.
-2. Optional LLM pass for ambiguous bonds (behind feature flag).
-3. Persist Life Schedule server-side for logged-in users.
-4. Household overlap with health audit (riders vs mediclaim).
+1. Grievance normalization (per lakh PIF).
+2. Optional LLM pass when confidence &lt; threshold.
+3. Household overlap with health audit (riders).
 
 ## 8. Key files
 
 | Path | Role |
 |------|------|
-| `data/life/index.json`, `data/life/fy-*.json` | FY packs (source of truth) |
-| `frontend/public/data/life/*.json` | Static copies for CRA |
-| `scripts/ingest_life_stats.py` | Sync script |
-| `frontend/src/lib/lifeStats.js` | Fetch + normalize insurers |
-| `frontend/src/pages/LifeAuditStart.jsx` | Trust panel + upload + extract |
-| `frontend/src/pages/LifeSchedule.jsx` | Schedule review |
-| `backend/services/life/extract_schedule.py` | Heuristic extraction |
-| `backend/routers/life_router.py` | Stats + extract routes |
-| `backend/tests/test_life_*.py` | Unit + API tests |
+| `scripts/build_life_fy_json.py` | CSV → `fy-*.json` |
+| `scripts/ingest_life_stats.py` | Copy `data/life/` → `frontend/public/data/life/` |
+| `backend/services/life/pdf_text.py` | Text + OCR |
+| `backend/services/rate_limit.py` | Extract rate limit |
+| `backend/services/life/extract_schedule.py` | Heuristics + `fieldConfidenceUi` |
+| `backend/routers/life_router.py` | Stats, extract, schedules |
+| `frontend/src/pages/LifeSchedule.jsx` | Confidence badges |

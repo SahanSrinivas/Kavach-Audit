@@ -7,6 +7,7 @@ import Header from "../components/Header";
 import LifeTrustPanel from "../components/life/LifeTrustPanel";
 import { fetchLifeStatsBundle, fetchLifeStatsIndex, normalizeInsurerRow } from "@/lib/lifeStats";
 import api from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 const SCHEDULE_STORAGE_KEY = "kavachly_life_schedule_v1";
 
@@ -24,6 +25,7 @@ export default function LifeAuditStart() {
   const [cisFile, setCisFile] = useState(null);
   const [bondFile, setBondFile] = useState(null);
   const [extracting, setExtracting] = useState(false);
+  const { user } = useAuth();
 
   const applyBundle = (bundle, fyKey) => {
     const normalized = (bundle.insurers || []).map(normalizeInsurerRow);
@@ -100,8 +102,30 @@ export default function LifeAuditStart() {
         toast.error("Could not save results in this browser session.");
         return;
       }
-      toast.success("Life Schedule extracted — review the fields.");
-      navigate("/audit/life/schedule");
+      let nextPath = "/audit/life/schedule";
+      if (user) {
+        try {
+          const saveRes = await api.post("/life/schedules", {
+            lifeSchedule: payload.lifeSchedule,
+            confidence: payload.confidence || {},
+            warnings: payload.warnings || [],
+            meta: payload.meta || {},
+            fieldConfidenceUi: payload.fieldConfidenceUi || [],
+          });
+          const sid = saveRes.data?.data?.id;
+          if (sid) {
+            nextPath = `/audit/life/schedule?id=${encodeURIComponent(sid)}`;
+            toast.success("Extracted and saved to your account.");
+          } else {
+            toast.success("Extracted — open your schedule to review.");
+          }
+        } catch {
+          toast.info("Extracted for this session. Sign in to save schedules to your account.");
+        }
+      } else {
+        toast.success("Life Schedule extracted — review the fields. Sign in to save for later.");
+      }
+      navigate(nextPath);
     } catch (e) {
       const detail = e.response?.data?.detail;
       const msg =
@@ -158,8 +182,8 @@ export default function LifeAuditStart() {
               Bring your issued documents
             </h2>
             <p className="mt-2 text-sm text-[#64748B] leading-relaxed">
-              Upload PDFs (text-based work best). We extract a structured Life Schedule using on-device text heuristics on
-              the server—no LLM in this path.
+              Upload PDFs. Text-based files parse fastest; scanned pages use OCR when the Tesseract engine is installed on
+              the server. Heuristic extraction only—no LLM in this path.
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col rounded-xl border-2 border-dashed border-[#E1E5EB] bg-[#F8FAFC] p-4 cursor-pointer hover:border-[#13A8A8]/50 transition-colors">
@@ -219,7 +243,8 @@ export default function LifeAuditStart() {
               )}
             </button>
             <p className="text-xs text-[#64748B] sm:max-w-xs">
-              Requires both PDFs and a running API ({process.env.REACT_APP_BACKEND_URL || "set REACT_APP_BACKEND_URL"}).
+              Requires both PDFs and a running API ({process.env.REACT_APP_BACKEND_URL || "set REACT_APP_BACKEND_URL"}).{" "}
+              {user ? "Your result is saved to your account when extraction succeeds." : "Sign in to keep a copy on your account."}
             </p>
           </div>
 

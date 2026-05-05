@@ -122,6 +122,7 @@ async def ensure_indexes():
     )
     await db.wordings.create_index("qa_status")
     await db.wordings.create_index([("parsed_at", -1)])
+    await db.life_schedules.create_index([("user_id", 1), ("created_at", -1)])
 
 
 @app.on_event("shutdown")
