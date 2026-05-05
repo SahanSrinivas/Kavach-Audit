@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -15,8 +16,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from auth import get_current_user, verify_csrf
 from services.life.extract_schedule import extract_life_schedule
+from services.life.llm_schedule import (
+    llm_metrics_snapshot,
+    llm_refine_life_schedule,
+    merge_heuristic_and_llm,
+)
+from services.life.overlap import build_overlap_hints
 from services.life.pdf_text import pdf_bytes_to_text
-from services.rate_limit import client_ip_from_request, life_extract_limiter
+from services.rate_limit import enforce_extract_rate_limit, rate_limit_metrics_snapshot
 
 logger = logging.getLogger("kavach.life")
 
@@ -34,12 +41,6 @@ def _ok(data: dict[str, Any] | None = None) -> dict[str, Any]:
 def _load_json(path: Path) -> dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
-
-
-async def _enforce_extract_rate_limit(request: Request) -> None:
-    ip = client_ip_from_request(request)
-    if not life_extract_limiter.check(ip):
-        raise HTTPException(status_code=429, detail="rate_limited")
 
 
 @router.get("/stats/index")
@@ -83,13 +84,11 @@ async def _require_pdf(upload: UploadFile, label: str) -> bytes:
     return raw
 
 
-@router.post("/extract")
+@router.post("/extract", dependencies=[Depends(enforce_extract_rate_limit)])
 async def extract_life_documents(
-    request: Request,
     cis: Optional[UploadFile] = File(None),
     bond: Optional[UploadFile] = File(None),
     insurer_id: str = Form(""),
-    _: None = Depends(_enforce_extract_rate_limit),
 ) -> dict[str, Any]:
     """Extract a structured Life Schedule from CIS + policy bond PDFs (text + optional OCR)."""
     if cis is None or bond is None:
@@ -111,6 +110,20 @@ async def extract_life_documents(
     hint = insurer_id.strip() or None
     result = extract_life_schedule(cis_text, bond_text, insurer_id=hint)
 
+    meta_extra: dict[str, Any] = {}
+    llm_on = os.environ.get("LIFE_EXTRACT_LLM_FALLBACK", "").lower() in ("1", "true", "yes")
+    llm_threshold = float(os.environ.get("LIFE_EXTRACT_LLM_THRESHOLD", "0.45"))
+    merge_threshold = float(os.environ.get("LIFE_EXTRACT_LLM_MERGE_THRESHOLD", "0.45"))
+
+    if llm_on and (result.get("confidence") or {}).get("overall", 1) < llm_threshold:
+        llm_out = await llm_refine_life_schedule(cis_text, bond_text, hint)
+        if llm_out:
+            result = merge_heuristic_and_llm(result, llm_out, threshold=merge_threshold)
+            meta_extra["llmRefinement"] = True
+            meta_extra["llmModel"] = os.environ.get("LIFE_LLM_MODEL", "claude-3-5-haiku-20241022")
+        else:
+            logger.info("life.extract.llm_skipped_or_failed metrics=%s", llm_metrics_snapshot())
+
     payload = {
         **result,
         "meta": {
@@ -120,14 +133,37 @@ async def extract_life_documents(
             "extractedAt": datetime.now(timezone.utc).isoformat(),
             "textCharsTotal": (result.get("textChars") or {}).get("cis", 0)
             + (result.get("textChars") or {}).get("bond", 0),
+            **meta_extra,
         },
     }
     logger.info(
-        "life.extract.ok insurer_hint=%s overall_conf=%s",
+        "life.extract.ok insurer_hint=%s overall_conf=%s llm=%s rate_limit=%s",
         hint,
         result.get("confidence", {}).get("overall"),
+        meta_extra.get("llmRefinement", False),
+        rate_limit_metrics_snapshot(),
     )
     return _ok(payload)
+
+
+@router.get("/overlap-hints")
+async def life_overlap_hints(
+    request: Request,
+    user: dict = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Education-only hints comparing latest saved life schedule vs health policies."""
+    db = request.app.state.db
+    cursor = db.life_schedules.find({"user_id": user["user_id"]}).sort("created_at", -1).limit(1)
+    docs = await cursor.to_list(1)
+    latest_doc = docs[0] if docs else None
+    life_schedule = (latest_doc.get("life_schedule") if latest_doc else None) or None
+
+    policies = await db.policies.find({"user_id": user["user_id"]}).to_list(length=100)
+    data = build_overlap_hints(life_schedule, policies)
+    data["lastRefreshedAt"] = (
+        latest_doc.get("created_at") if latest_doc and latest_doc.get("created_at") else datetime.now(timezone.utc).isoformat()
+    )
+    return _ok(data)
 
 
 # ----- Persisted schedules (authenticated) -----

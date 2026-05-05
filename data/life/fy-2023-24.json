@@ -19,7 +19,8 @@
       "settledWithin30DaysPct": 97.1,
       "thirteenthMonthPersistencyPct": 81.2,
       "twentyFifthMonthPersistencyPct": 62.4,
-      "solvencyRatio": 1.85
+      "solvencyRatio": 1.85,
+      "grievancesPerLakhPolicies": 6.8
     },
     {
       "id": "hdfc-life",
@@ -29,7 +30,8 @@
       "settledWithin30DaysPct": 99.0,
       "thirteenthMonthPersistencyPct": 84.0,
       "twentyFifthMonthPersistencyPct": 68.1,
-      "solvencyRatio": 1.76
+      "solvencyRatio": 1.76,
+      "grievancesPerLakhPolicies": 4.3
     },
     {
       "id": "sbi-life",
@@ -39,7 +41,8 @@
       "settledWithin30DaysPct": 98.5,
       "thirteenthMonthPersistencyPct": 82.7,
       "twentyFifthMonthPersistencyPct": 65.3,
-      "solvencyRatio": 2.01
+      "solvencyRatio": 2.01,
+      "grievancesPerLakhPolicies": 5.1
     },
     {
       "id": "icici-pru",
@@ -49,7 +52,8 @@
       "settledWithin30DaysPct": 97.8,
       "thirteenthMonthPersistencyPct": 83.5,
       "twentyFifthMonthPersistencyPct": 66.0,
-      "solvencyRatio": 1.94
+      "solvencyRatio": 1.94,
+      "grievancesPerLakhPolicies": 5.7
     },
     {
       "id": "max-life",
@@ -59,7 +63,8 @@
       "settledWithin30DaysPct": 98.9,
       "thirteenthMonthPersistencyPct": 85.2,
       "twentyFifthMonthPersistencyPct": 69.4,
-      "solvencyRatio": 1.88
+      "solvencyRatio": 1.88,
+      "grievancesPerLakhPolicies": 4.1
     },
     {
       "id": "bajaj-allianz-life",
@@ -69,7 +74,8 @@
       "settledWithin30DaysPct": 97.5,
       "thirteenthMonthPersistencyPct": 80.4,
       "twentyFifthMonthPersistencyPct": 61.8,
-      "solvencyRatio": 1.72
+      "solvencyRatio": 1.72,
+      "grievancesPerLakhPolicies": 6.2
     }
   ]
 }

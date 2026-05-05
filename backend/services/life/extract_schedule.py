@@ -89,6 +89,21 @@ def _detect_nominee(text: str) -> bool:
     return "nominee" in low or "nomination" in low
 
 
+def _detect_riders(text: str) -> list[str]:
+    """Keyword hints for overlap with health riders (non-exhaustive)."""
+    low = text.lower()
+    found: list[str] = []
+    if "critical illness" in low or "critical illness rider" in low:
+        found.append("critical_illness")
+    if "personal accident" in low or "pa rider" in low or "accident rider" in low:
+        found.append("personal_accident")
+    if "hospital cash" in low or "daily cash" in low:
+        found.append("hospital_daily_cash")
+    if "waiver of premium" in low or "waiver benefit" in low:
+        found.append("waiver_of_premium")
+    return found
+
+
 def _detect_free_look(text: str) -> tuple[int | None, float]:
     m = re.search(
         r"free\s*look\s*(?:period)?\s*[:.]?\s*(\d{1,2})\s*days?",
@@ -159,6 +174,7 @@ def extract_life_schedule(
     fl, c_fl = _detect_free_look(merged)
     nominee = _detect_nominee(merged)
     c_nominee = 0.58 if nominee else 0.22
+    detected_riders = _detect_riders(merged)
 
     schedule: dict[str, Any] = {
         "schemaVersion": 1,
@@ -172,6 +188,7 @@ def extract_life_schedule(
         "freeLookDays": fl,
         "insurerHintId": insurer_id or None,
         "riders": [],
+        "detectedRiders": detected_riders,
     }
 
     conf_parts = [c_sa, c_pt, c_ppt, c_prem, c_plan, c_freq, c_fl]

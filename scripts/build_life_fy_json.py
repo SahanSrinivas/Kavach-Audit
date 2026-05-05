@@ -32,6 +32,9 @@ REQUIRED_FLOAT = (
     "solvencyRatio",
 )
 
+# Optional IRDAI-style metrics — omit column or leave blank if unavailable.
+OPTIONAL_FLOAT = ("grievancesPerLakhPolicies",)
+
 
 def row_to_insurer(r: dict[str, str]) -> dict:
     out: dict = {
@@ -39,7 +42,7 @@ def row_to_insurer(r: dict[str, str]) -> dict:
         "shortName": r["shortName"].strip(),
         "legalName": r["legalName"].strip(),
     }
-    for k in REQUIRED_FLOAT:
+    for k in REQUIRED_FLOAT + OPTIONAL_FLOAT:
         raw = (r.get(k) or "").strip()
         if raw == "":
             out[k] = None

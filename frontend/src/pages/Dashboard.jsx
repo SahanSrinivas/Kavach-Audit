@@ -8,6 +8,7 @@ import ScoreTiles from "../components/dashboard/ScoreTiles";
 import TopFindingCard from "../components/dashboard/TopFindingCard";
 import CoverageByType from "../components/dashboard/CoverageByType";
 import PoliciesList from "../components/dashboard/PoliciesList";
+import LifePortfolioCard from "../components/dashboard/LifePortfolioCard";
 import AlertsInbox from "../components/dashboard/AlertsInbox";
 import QuickActions from "../components/dashboard/QuickActions";
 import DashboardEmptyState from "../components/dashboard/DashboardEmptyState";
@@ -40,7 +41,7 @@ export default function Dashboard() {
   const [showAddMember, setShowAddMember] = useState(false);
 
   const hasAudit = user?.has_audit;
-  const { audit, policies, alerts, retry } = useDashboardData(hasAudit);
+  const { audit, policies, alerts, lifeSchedules, overlapHints, retry } = useDashboardData(hasAudit);
 
   // "portfolio" or a policy.id. Defaults to portfolio; we auto-jump to
   // the single policy on first load when the user has exactly one
@@ -149,6 +150,21 @@ export default function Dashboard() {
               error={policies.error}
               retrying={policies.loading}
               onRetry={retry.policies}
+            />
+            <LifePortfolioCard
+              schedules={lifeSchedules.data}
+              overlap={overlapHints.data}
+              error={lifeSchedules.error}
+              overlapError={overlapHints.error}
+              retrying={lifeSchedules.loading}
+              overlapRetrying={overlapHints.loading}
+              onRetry={() => {
+                retry.lifeSchedules();
+                retry.overlapHints();
+              }}
+              onRetryOverlap={retry.overlapHints}
+              onOpenSchedule={(id) => navigate(`/audit/life/schedule?id=${encodeURIComponent(id)}`)}
+              onStartLifeAudit={() => navigate("/audit/life/start")}
             />
             <AlertsInbox
               alerts={alerts.data}

@@ -15,7 +15,9 @@ import api from "../lib/api";
 //     audit:    { data, error, loading },
 //     policies: { data, error, loading },
 //     alerts:   { data, error, loading },
-//     retry:    { audit(), policies(), alerts() },
+//     lifeSchedules: { data, error, loading },
+//     overlapHints: { data, error, loading },
+//     retry:    { audit(), policies(), alerts(), lifeSchedules(), overlapHints() },
 //   }
 //
 // data is null/[] (not undefined) so the consumer can spread without
@@ -28,9 +30,13 @@ const FETCHERS = {
     api.get("/policies").then((r) => r.data?.data?.policies ?? []),
   alerts: () =>
     api.get("/alerts").then((r) => r.data?.data?.alerts ?? []),
+  lifeSchedules: () =>
+    api.get("/life/schedules").then((r) => r.data?.data?.schedules ?? []),
+  overlapHints: () =>
+    api.get("/life/overlap-hints").then((r) => r.data?.data ?? null),
 };
 
-const EMPTY = { audit: null, policies: [], alerts: [] };
+const EMPTY = { audit: null, policies: [], alerts: [], lifeSchedules: [], overlapHints: null };
 
 export default function useDashboardData(enabled) {
   const [data, setData] = useState(EMPTY);
@@ -38,13 +44,21 @@ export default function useDashboardData(enabled) {
     audit: null,
     policies: null,
     alerts: null,
+    lifeSchedules: null,
+    overlapHints: null,
   });
   // Initial loading state derived from `enabled` so a logged-out / no-audit
   // user doesn't get a one-frame flash of the skeleton.
   const [loading, setLoading] = useState(() =>
     enabled
-      ? { audit: true, policies: true, alerts: true }
-      : { audit: false, policies: false, alerts: false },
+      ? { audit: true, policies: true, alerts: true, lifeSchedules: true, overlapHints: true }
+      : {
+          audit: false,
+          policies: false,
+          alerts: false,
+          lifeSchedules: false,
+          overlapHints: false,
+        },
   );
 
   const fetchOne = useCallback(async (key) => {
@@ -62,13 +76,21 @@ export default function useDashboardData(enabled) {
 
   useEffect(() => {
     if (!enabled) {
-      setLoading({ audit: false, policies: false, alerts: false });
+      setLoading({
+        audit: false,
+        policies: false,
+        alerts: false,
+        lifeSchedules: false,
+        overlapHints: false,
+      });
       return;
     }
     // Independent — no Promise.all. Each fires its own try/catch path.
     fetchOne("audit");
     fetchOne("policies");
     fetchOne("alerts");
+    fetchOne("lifeSchedules");
+    fetchOne("overlapHints");
   }, [enabled, fetchOne]);
 
   return {
@@ -79,10 +101,22 @@ export default function useDashboardData(enabled) {
       loading: loading.policies,
     },
     alerts: { data: data.alerts, error: errors.alerts, loading: loading.alerts },
+    lifeSchedules: {
+      data: data.lifeSchedules,
+      error: errors.lifeSchedules,
+      loading: loading.lifeSchedules,
+    },
+    overlapHints: {
+      data: data.overlapHints,
+      error: errors.overlapHints,
+      loading: loading.overlapHints,
+    },
     retry: {
       audit: () => fetchOne("audit"),
       policies: () => fetchOne("policies"),
       alerts: () => fetchOne("alerts"),
+      lifeSchedules: () => fetchOne("lifeSchedules"),
+      overlapHints: () => fetchOne("overlapHints"),
     },
   };
 }

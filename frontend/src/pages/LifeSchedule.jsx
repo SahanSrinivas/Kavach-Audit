@@ -8,6 +8,13 @@ import { cn } from "@/lib/utils";
 
 const SCHEDULE_STORAGE_KEY = "kavachly_life_schedule_v1";
 
+const RIDER_LABELS = {
+  critical_illness: "Critical illness",
+  personal_accident: "Personal accident",
+  hospital_daily_cash: "Hospital daily cash",
+  waiver_of_premium: "Waiver of premium",
+};
+
 function formatInr(n) {
   if (n == null || Number.isNaN(Number(n))) return "—";
   try {
@@ -228,6 +235,25 @@ export default function LifeSchedule() {
             </tbody>
           </table>
         </div>
+
+        {Array.isArray(schedule.detectedRiders) && schedule.detectedRiders.length > 0 ? (
+          <div className="mt-6 rounded-2xl border border-[#E1E5EB] bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">Riders (keyword signals)</p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {schedule.detectedRiders.map((code) => (
+                <li
+                  key={code}
+                  className="rounded-full bg-[#13A8A8]/10 px-3 py-1 text-xs font-medium text-[#0B2545]"
+                >
+                  {RIDER_LABELS[code] || code.replace(/_/g, " ")}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[11px] text-[#94A3B8] leading-snug">
+              Heuristic scan of CIS/bond text — confirm rider names and terms in your PDFs.
+            </p>
+          </div>
+        ) : null}
 
         {warnings.length > 0 ? (
           <div className="mt-6 rounded-xl border border-[#B45309]/30 bg-[#FFFBEB] px-4 py-3 text-sm text-[#92400E]">

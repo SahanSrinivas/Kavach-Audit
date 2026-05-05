@@ -34,5 +34,6 @@ export function normalizeInsurerRow(raw) {
     thirteenthMonthPersistencyPct: raw.thirteenthMonthPersistencyPct ?? null,
     twentyFifthMonthPersistencyPct: raw.twentyFifthMonthPersistencyPct ?? null,
     solvencyRatio: raw.solvencyRatio ?? null,
+    grievancesPerLakhPolicies: raw.grievancesPerLakhPolicies ?? null,
   };
 }

@@ -144,6 +144,13 @@ export default function LifeTrustPanel({
             suffix="×"
             hint="Regulatory solvency margin vs requirement—financial capacity to meet obligations (not claim quality alone)."
           />
+          {selected.grievancesPerLakhPolicies != null ? (
+            <Metric
+              label="Grievances (per lakh policies)"
+              value={selected.grievancesPerLakhPolicies}
+              hint="Complaints registered per lakh policies in force, where published in IRDAI / insurer disclosures for this FY. Lower is generally better; compare across insurers with similar scale."
+            />
+          ) : null}
         </div>
       ) : null}
 
