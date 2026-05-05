@@ -201,6 +201,46 @@ export default function Stage4Policies() {
           toast.error(detail.message || "Please add a nickname before uploading.");
         } else if (detail?.error === "nickname_too_long") {
           toast.error(detail.message || `Nickname must be ${NICKNAME_MAX_LEN} chars or less.`);
+        } else if (detail?.error === "not_insurance_document") {
+          // Preflight rejected — surface the type hint so the user
+          // knows what we think they uploaded ("Looks like a resume…").
+          const hint = detail.detected_type_hint;
+          const friendly = {
+            resume: "Looks like a resume",
+            bank_statement: "Looks like a bank statement",
+            salary_slip: "Looks like a salary slip",
+            invoice: "Looks like an invoice",
+            loan_agreement: "Looks like a loan agreement",
+            tax_document: "Looks like a tax document",
+            lease: "Looks like a lease/rental agreement",
+          }[hint];
+          if (friendly) {
+            toast.error(`${friendly} — we need your policy schedule instead.`);
+          } else {
+            toast.error(
+              `We couldn't recognize ${f.name} as an insurance document. ` +
+                "Try your policy schedule from your insurer's email.",
+            );
+          }
+        } else if (detail?.error === "encrypted_pdf") {
+          toast.error(
+            "This PDF is password-protected. Please remove the password " +
+              "and try again, or copy the text into a new PDF.",
+          );
+        } else if (
+          detail?.error === "pdf_too_many_pages" ||
+          detail?.error === "pdf_too_few_pages"
+        ) {
+          const n = detail.page_count;
+          toast.error(
+            `This PDF is ${n} pages. Insurance documents are usually ` +
+              "1-80 pages. Make sure you uploaded the right file.",
+          );
+        } else if (detail?.error === "invalid_pdf" || detail?.error === "pdf_too_small") {
+          toast.error(
+            "We couldn't open this as a valid PDF. " +
+              "Try re-downloading it from your insurer's email.",
+          );
         } else {
           toast.error(`Couldn't parse ${f.name} — try Quick declare instead.`);
         }

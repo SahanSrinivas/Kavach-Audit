@@ -28,6 +28,13 @@ from auth import get_current_user, verify_csrf
 from mocks.fixtures import make_mock_parsed_policy
 from services.beta import resolve_engine_mode
 from services.parser import ParseFailureError, parse_policy_pdf
+from services.parser.preflight import (
+    OUTCOMES_NO_CLAUDE,
+    OUTCOME_REJECT,
+    OUTCOME_STRUCTURAL,
+    PreflightResult,
+    preflight_check,
+)
 from services.parser.response_validator import to_engine_shape
 
 logger = logging.getLogger("kavach.parser")
@@ -76,12 +83,100 @@ def _iso(dt: datetime) -> str:
 # slot. Out of scope for this pass; revisit when we next touch this
 # router. Move parse_attempts.insert_one() to after the cache miss.
 async def _check_parse_rate_limit(db: Any, user_id: str) -> None:
+    """Count Claude-bound attempts in the last hour. Preflight rejects
+    are excluded — a user uploading garbage shouldn't burn rate-limit
+    slots since no Claude call ever happens."""
     since = _iso(_utcnow() - timedelta(hours=1))
-    count = await db.parse_attempts.count_documents(
-        {"user_id": user_id, "created_at": {"$gte": since}}
-    )
+    count = await db.parse_attempts.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": since},
+        "preflight_outcome": {"$nin": list(OUTCOMES_NO_CLAUDE)},
+    })
     if count >= PARSE_LIMIT_PER_HOUR:
         raise HTTPException(status_code=429, detail="parse_rate_limited")
+
+
+async def _log_preflight_attempt(
+    db: Any, user_id: str, sha: str, preflight: PreflightResult,
+) -> None:
+    """Single source of truth for parse_attempts inserts. Carries
+    preflight observability fields so we can tune thresholds from
+    real distributions and rate-limit by outcome."""
+    await db.parse_attempts.insert_one({
+        "_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "sha": sha,
+        "created_at": _iso(_utcnow()),
+        "preflight_outcome": preflight.outcome,
+        "preflight_score": preflight.score,
+        "preflight_signals": dict(preflight.signals),
+        "preflight_ms": preflight.elapsed_ms,
+        "detected_type_hint": preflight.detected_type_hint,
+    })
+
+
+# Map structural-reject error_type → user-facing action copy. Score-based
+# rejects ("not_insurance_document") get their own envelope below.
+_STRUCTURAL_USER_ACTIONS: dict[str, str] = {
+    "encrypted_pdf": (
+        "Please remove the password and try again, or copy the text "
+        "into a new PDF."
+    ),
+    "pdf_too_many_pages": (
+        "Make sure you uploaded the right file — insurance schedules "
+        "are usually 1-5 pages and wordings 30-80 pages."
+    ),
+    "pdf_too_few_pages": (
+        "This PDF appears to be empty. Try re-downloading it from "
+        "your insurer's email."
+    ),
+    "pdf_too_small": (
+        "This file looks empty or truncated. Try re-downloading it."
+    ),
+    "pdf_too_large": (
+        "This file is unusually large. Use the policy schedule (1-5 pages) "
+        "rather than the full wording document if possible."
+    ),
+    "invalid_pdf": (
+        "We couldn't open this as a PDF. Make sure it's a real PDF "
+        "(not a renamed image or document)."
+    ),
+}
+
+
+def _preflight_reject_detail(preflight: PreflightResult) -> dict[str, Any]:
+    """Build the structured 400 detail for a rejected preflight.
+
+    Two shapes:
+      - structural reject: error = preflight.error (specific code), with
+        a tailored user_action per type.
+      - score reject: error = "not_insurance_document", carries score +
+        detected_type_hint so the frontend can say "Looks like a resume…".
+    """
+    if preflight.outcome == OUTCOME_STRUCTURAL:
+        err = preflight.error or "invalid_pdf"
+        return {
+            "error": err,
+            "message": preflight.error_message or "Couldn't process this PDF.",
+            "user_action": _STRUCTURAL_USER_ACTIONS.get(
+                err, "Try a different file."
+            ),
+            "page_count": preflight.page_count or None,
+        }
+    # score-based reject
+    return {
+        "error": "not_insurance_document",
+        "preflight_score": preflight.score,
+        "detected_type_hint": preflight.detected_type_hint or "unknown",
+        "message": (
+            "This doesn't look like an insurance policy. We expect a "
+            "policy schedule or policy wording from an Indian insurer."
+        ),
+        "user_action": (
+            "Try your policy schedule from your insurer's email — "
+            "usually a 1-2 page PDF with your sum insured and premium."
+        ),
+    }
 
 
 async def _record_failure(
@@ -247,6 +342,7 @@ async def upload_policy(
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="only_pdf_supported")
     db = request.app.state.db
+    user_id = current["user_id"]
 
     # Validate + normalize nickname before any expensive work (parse, etc.)
     nickname = _normalize_nickname(nickname)
@@ -260,7 +356,7 @@ async def upload_policy(
     # Required if user already has at least one policy on file (so the
     # dashboard can disambiguate). The very first upload doesn't need one.
     existing_policy_count = await db.policies.count_documents(
-        {"user_id": current["user_id"]},
+        {"user_id": user_id},
     )
     if existing_policy_count >= 1 and nickname is None:
         raise HTTPException(
@@ -270,50 +366,67 @@ async def upload_policy(
                                "apart from your other policies."},
         )
 
-    mode, beta_invocation = await resolve_engine_mode(
-        db=db,
-        user_id=current["user_id"],
-        beta_param=beta,
-        feature=PARSER_BETA_FEATURE,
-        use_mocks_global=USE_MOCKS,
-    )
-
-    await _check_parse_rate_limit(db, current["user_id"])
-
+    # Read bytes early — preflight needs them, and the size check is cheap.
     raw = await file.read()
     if len(raw) > MAX_PDF_BYTES:
         raise HTTPException(status_code=413, detail="file_too_large")
 
     sha = hashlib.sha256(raw).hexdigest()
-    safe_name = f"{current['user_id']}_{sha[:16]}.pdf"
+
+    # ----- PREFLIGHT — runs BEFORE rate-limit and BEFORE parse_policy_pdf.
+    # Purpose: reject obvious non-insurance PDFs (resume, bank statement,
+    # invoice, etc.) without burning a Claude call (~₹35) or a rate-limit
+    # slot. Always logged to parse_attempts for observability + tuning;
+    # the rate-limit query in _check_parse_rate_limit excludes
+    # outcomes in OUTCOMES_NO_CLAUDE, so rejected uploads don't count.
+    preflight = preflight_check(raw)
+    logger.info(
+        "preflight user=%s sha=%s outcome=%s score=%s ms=%d hint=%s",
+        user_id, sha[:8], preflight.outcome, preflight.score,
+        preflight.elapsed_ms, preflight.detected_type_hint,
+    )
+
+    if preflight.outcome in OUTCOMES_NO_CLAUDE:
+        await _log_preflight_attempt(db, user_id, sha, preflight)
+        raise HTTPException(
+            status_code=400,
+            detail=_preflight_reject_detail(preflight),
+        )
+
+    mode, beta_invocation = await resolve_engine_mode(
+        db=db,
+        user_id=user_id,
+        beta_param=beta,
+        feature=PARSER_BETA_FEATURE,
+        use_mocks_global=USE_MOCKS,
+    )
+
+    await _check_parse_rate_limit(db, user_id)
+
+    safe_name = f"{user_id}_{sha[:16]}.pdf"
     target = UPLOADS_DIR / safe_name
     if not target.exists():
         target.write_bytes(raw)
 
-    # Track the parse attempt for rate-limiting
+    # Track the parse attempt for rate-limiting + preflight observability.
     # TODO(rate-limit-after-cache-check): see _check_parse_rate_limit comment
-    await db.parse_attempts.insert_one({
-        "_id": str(uuid.uuid4()),
-        "user_id": current["user_id"],
-        "sha": sha,
-        "created_at": _iso(_utcnow()),
-    })
+    await _log_preflight_attempt(db, user_id, sha, preflight)
 
     # Cache hit: re-uploads of the same PDF don't re-call Claude
     cached = await db.policies.find_one(
-        {"user_id": current["user_id"], "raw_sha": sha}, {"_id": 0}
+        {"user_id": user_id, "raw_sha": sha}, {"_id": 0}
     )
     if cached:
-        logger.info("parser.cache_hit user=%s sha=%s", current["user_id"], sha[:8])
+        logger.info("parser.cache_hit user=%s sha=%s", user_id, sha[:8])
         return _ok({"policy": cached, "cached": True})
 
     logger.info("parser.cache_miss user=%s sha=%s file_kb=%d",
-                current["user_id"], sha[:8], len(raw) // 1024)
+                user_id, sha[:8], len(raw) // 1024)
     parsed_doc = await _build_parsed_policy(
         pdf_bytes=raw,
         mode=mode,
         beta_invocation=beta_invocation,
-        user_id=current["user_id"],
+        user_id=user_id,
         raw_path=str(target),
         filename=file.filename,
         db=db,

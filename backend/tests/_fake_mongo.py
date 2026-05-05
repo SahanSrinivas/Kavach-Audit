@@ -58,6 +58,13 @@ class _Collection:
                 if doc_val is None or doc_val <= v["$gt"]:
                     return False
                 continue
+            if isinstance(v, dict) and "$nin" in v:
+                # MongoDB semantics: $nin matches if field absent OR value
+                # not in list. We mirror that — `doc_val is None` means
+                # the field is absent / unset, which is a match.
+                if doc_val in v["$nin"]:
+                    return False
+                continue
             if doc_val != v:
                 return False
         return True

@@ -54,14 +54,57 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
+def _make_valid_policy_pdf() -> bytes:
+    """A minimal real PDF that passes the preflight scoring filter.
+
+    Pre-preflight, these tests used 20 bytes of dummy data because the
+    mock parser doesn't read the PDF. Preflight does — it checks
+    structure and scores content. We need a real PDF with insurance
+    vocabulary so preflight accepts and the upload reaches the mock
+    branch (which is what these tests actually want to exercise)."""
+    import pymupdf  # type: ignore[import-untyped]
+    doc = pymupdf.open()
+    for p in range(2):
+        page = doc.new_page()
+        y = 50.0
+        for line in [
+            "POLICY SCHEDULE",
+            "HDFC ERGO General Insurance Company Limited",
+            "IRDAI Reg. No. 146",
+            "Policy No: HE-OR-23-9087421",
+            "Sum Insured: Rs. 15,00,000 (Fifteen Lakh)",
+            "Annual Premium Payable: Rs. 22,400",
+            "Period of Insurance: 01/04/2024 to 31/03/2025",
+            "Insured Person: Test User",
+            "Hospitalization, in-patient and OPD benefits.",
+        ]:
+            page.insert_text((50, y), line)
+            y += 16
+        # Padding to ensure file > MIN_FILE_BYTES (10 KB)
+        for i in range(40):
+            page.insert_text((50, y), f"Filler line {p}-{i} for size padding.")
+            y += 12
+            if y > 750:
+                break
+    pdf = doc.tobytes()
+    doc.close()
+    return pdf
+
+
+# Generated once at import — same bytes reused across all tests.
+_VALID_PDF_BYTES: bytes = _make_valid_policy_pdf()
+
+
 def _upload(
     client: TestClient,
     *,
     filename: str = "policy.pdf",
     nickname: str | None = None,
-    pdf_bytes: bytes = b"%PDF-1.4 dummy bytes",
+    pdf_bytes: bytes | None = None,
 ) -> object:
-    files = {"file": (filename, io.BytesIO(pdf_bytes), "application/pdf")}
+    files = {
+        "file": (filename, io.BytesIO(pdf_bytes or _VALID_PDF_BYTES), "application/pdf"),
+    }
     data = {}
     if nickname is not None:
         data["nickname"] = nickname
