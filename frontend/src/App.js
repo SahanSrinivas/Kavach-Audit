@@ -7,6 +7,7 @@ import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 import Stage0Hook from "./pages/Stage0Hook";
+import Landing from "./pages/Landing";
 import Stage1Identity from "./pages/Stage1Identity";
 import Stage2Family from "./pages/Stage2Family";
 import Stage3Money from "./pages/Stage3Money";
@@ -26,8 +27,9 @@ export default function App() {
       <BrowserRouter>
         <Toaster position="top-center" richColors closeButton />
         <Routes>
-          {/* Public hook */}
-          <Route path="/" element={<Stage0Hook />} />
+          {/* Marketing landing + audit entry */}
+          <Route path="/" element={<Landing />} />
+          <Route path="/audit/start" element={<Stage0Hook />} />
 
           {/* Audit flow */}
           <Route path="/audit/identity" element={<Stage1Identity />} />

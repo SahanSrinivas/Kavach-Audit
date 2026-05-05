@@ -1,0 +1,61 @@
+# Wordings download log — 2026-05-05T01:17:26Z
+# 14 targets, validation band 102400-26214400 bytes, firecrawl fallback: enabled
+
+[2026-05-05T01:17:26Z] OK    HDFC ERGO General | Optima Secure  (via direct)
+  url:    https://www.hdfcergo.com/docs/default-source/downloads/policy-wordings/health/optima-secure-revision-pw.pdf
+  size:   625,359 bytes  (2541ms)
+  saved:  wordings/hdfc_ergo_general/optima_secure.pdf
+[2026-05-05T01:17:29Z] OK    Star Health | Comprehensive  (via direct)
+  url:    https://irdai.gov.in/documents/37343/931203/SHAHLIP22028V072122_HEALTH2050.pdf/70aade12-d528-1155-a8b7-c03d2cfecd15?version=1.1&t=1668769970678&download=true
+  size:   1,444,634 bytes  (2634ms)
+  saved:  wordings/star_health/comprehensive.pdf
+[2026-05-05T01:17:32Z] OK    Care Health | Supreme  (via direct)
+  url:    https://cms.careinsurance.com/cms/public/uploads/download_center/care-supreme---policy-terms-and-conditions.pdf
+  size:   1,772,653 bytes  (4570ms)
+  saved:  wordings/care_health/supreme.pdf
+[2026-05-05T01:17:36Z] OK    Niva Bupa | ReAssure 2.0 Platinum+  (via direct)
+  url:    https://transactions.nivabupa.com/pages/doc/policy_wording/ReAssure-2.0-Policy-Wording.pdf
+  size:   608,348 bytes  (1927ms)
+  saved:  wordings/niva_bupa/reassure_2_0_platinum.pdf
+[2026-05-05T01:17:38Z] OK    Aditya Birla Health | Activ One MAX  (via direct)
+  url:    https://www.adityabirlacapital.com/healthinsurance/assets/pdf/active-one/NXT/product-information/policy-document.pdf
+  size:   720,835 bytes  (5604ms)
+  saved:  wordings/aditya_birla_health/activ_one_max.pdf
+[2026-05-05T01:17:44Z] OK    ICICI Lombard | Elevate  (via direct)
+  url:    https://www.icicilombard.com/docs/default-source/apps/elevateapp/assets/pdf/elevate-policy-wordings.pdf
+  size:   891,156 bytes  (1218ms)
+  saved:  wordings/icici_lombard/elevate.pdf
+[2026-05-05T01:17:45Z] OK    Tata AIG General | MediCare Premier  (via direct)
+  url:    https://www.tataaig.com/s3/Tata_AIG_Medi_Care_Premier_2f02f3813c.pdf
+  size:   234,519 bytes  (2991ms)
+  saved:  wordings/tata_aig_general/medicare_premier.pdf
+[2026-05-05T01:17:48Z] OK    Bajaj Allianz General | Health Guard  (via direct)
+  url:    https://www.bajajallianz.com/download-documents/health-insurance/health-guard/Health-Guard-Policy-Wordings-print.pdf
+  size:   1,355,654 bytes  (956ms)
+  saved:  wordings/bajaj_allianz_general/health_guard.pdf
+[2026-05-05T01:17:49Z] OK    ManipalCigna | ProHealth Prime  (via direct)
+  url:    https://irdai.gov.in/documents/37343/931203/MCIHLIP22224V012122.pdf/6cf0a1af-1bc8-0c09-531a-671e15963135?version=1.1&t=1668851840343&download=true
+  size:   1,536,885 bytes  (2571ms)
+  saved:  wordings/manipalcigna/prohealth_prime.pdf
+[2026-05-05T01:17:51Z] OK    New India Assurance | Floater Mediclaim  (via direct)
+  url:    https://www.newindia.co.in/assets/docs/know-more/health/floater-mediclaim-policy/Policy Clause New India Floater Mediclaim Policy wef 01 10 2024.pdf
+  size:   944,630 bytes  (4274ms)
+  saved:  wordings/new_india_assurance/floater_mediclaim.pdf
+[2026-05-05T01:17:56Z] OK    Star Health | Senior Citizens Red Carpet  (via direct)
+  url:    https://irdai.gov.in/documents/37343/931203/SHAHLIP22199V062122.pdf/e5830765-7541-0484-9119-330738250254?version=1.1&t=1668853579702&download=true
+  size:   1,064,576 bytes  (2253ms)
+  saved:  wordings/star_health/senior_citizens_red_carpet.pdf
+[2026-05-05T01:17:58Z] OK    United India Insurance | Family Medicare  (via direct)
+  url:    https://irdai.gov.in/documents/37343/931203/UIIHLIP22070V042122_HEALTH2068.pdf/ade80179-0e46-3c62-a889-652663255c71?version=1.1&t=1668769400360&download=true
+  size:   1,583,059 bytes  (3004ms)
+  saved:  wordings/united_india_insurance/family_medicare.pdf
+[2026-05-05T01:18:01Z] OK    Oriental Insurance | Happy Family Floater  (via direct)
+  url:    https://irdai.gov.in/documents/37343/931203/OICHLIP22010V042223.pdf/b8f4f473-3670-8936-c219-d87881338353?version=1.0&t=1669353756992&download=true
+  size:   1,220,124 bytes  (2261ms)
+  saved:  wordings/oriental_insurance/happy_family_floater.pdf
+[2026-05-05T01:18:03Z] OK    National Insurance | Mediclaim  (via direct)
+  url:    https://irdai.gov.in/documents/37343/931203/NICHLIP21166V042021_2020-2021.pdf/11efffcc-a037-8819-2d2a-dc210ddac550?version=1.1&t=1668663754897&download=true
+  size:   1,307,077 bytes  (2378ms)
+  saved:  wordings/national_insurance/mediclaim.pdf
+
+# Summary: 14 ok (14 direct, 0 firecrawl), 0 failed (of 14 targets)

@@ -167,7 +167,11 @@ export default function Login() {
             <div className="mt-10 pt-6 border-t border-[#E1E5EB]">
               <p className="text-sm text-[#475569]">
                 First time here?{" "}
-                <Link to="/" data-testid="login-to-audit-link" className="text-[#13A8A8] font-semibold hover:underline">
+                <Link
+                  to="/audit/start"
+                  data-testid="login-to-audit-link"
+                  className="text-[#13A8A8] font-semibold hover:underline"
+                >
                   Take the free audit →
                 </Link>
               </p>

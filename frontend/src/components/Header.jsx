@@ -12,7 +12,7 @@ import { useAuth } from "../lib/auth";
  *   nothing when logged out.
  * - Logo click → "/" if logged out, "/dashboard" if logged in.
  *
- * Do NOT use on Stage 0 ("/"). The landing hero is friction-zero by design.
+ * Do NOT use on Stage 0 ("/audit/start"). The welcome hero is friction-zero by design.
  */
 export default function Header() {
   const { user, loading } = useAuth();

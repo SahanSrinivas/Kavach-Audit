@@ -55,6 +55,14 @@ module.exports = {
   			}
   		},
   		keyframes: {
+  			'mesh-slow': {
+  				'0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+  				'50%': { transform: 'translate(3%, -2%) scale(1.03)' },
+  			},
+  			'mesh-slow-alt': {
+  				'0%, 100%': { transform: 'translate(0, 0) scale(1)' },
+  				'50%': { transform: 'translate(-4%, 3%) scale(1.02)' },
+  			},
   			'accordion-down': {
   				from: {
   					height: '0'
@@ -74,7 +82,9 @@ module.exports = {
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			'mesh-slow': 'mesh-slow 22s ease-in-out infinite',
+  			'mesh-slow-alt': 'mesh-slow-alt 28s ease-in-out infinite',
   		}
   	}
   },

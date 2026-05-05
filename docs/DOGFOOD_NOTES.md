@@ -280,3 +280,23 @@ If we're keeping a single canonical insurer table, add these life insurer aliase
 
 Recommend (2) for next, since the v0.4 work was scoped to health and we should validate the happy path on a real health schedule before iterating on edges.
 
+## Bug H (deferred — UX polish, not engineering bug)
+
+When user uploads a tiny endowment (e.g., ₹4L), the audit produces TWO
+overlapping life-related findings:
+1. missing_term_life: "You have no term life cover"
+2. underinsured_life: "Your life cover is ₹1 Lakh but family needs ~₹2.7 Cr"
+
+Both technically true, but reads as contradictory to the user.
+
+Decision needed:
+- Option A: Suppress underinsured_life when missing_term_life fires for the
+  same person. Cleaner, but loses the "you have SOME cover, just not enough"
+  signal.
+- Option B: Re-word missing_term_life to "You have no DEDICATED term cover"
+  and underinsured_life to acknowledge the endowment. More accurate,
+  more text.
+- Option C: Merge into a single composite finding when both fire.
+
+Defer until 2-3 more dogfood sessions reveal which option real users want.
+
