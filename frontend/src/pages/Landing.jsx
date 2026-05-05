@@ -44,7 +44,7 @@ function smoothScrollToId(id, prefersReduced) {
 }
 
 /* —— Hero illustration: stylized policy + scan line (SVG) —— */
-function HeroIllustration({ className, reduceMotion }) {
+function HeroIllustration({ className, reduceMotion, auditMode = "health" }) {
   return (
     <div
       className={cn("relative select-none", className)}
@@ -101,7 +101,7 @@ function HeroIllustration({ className, reduceMotion }) {
           strokeLinecap="round"
         />
         <text x="72" y="210" fontSize="11" fill="#0B2545" fillOpacity="0.5" fontFamily="system-ui">
-          Schedule · Health
+          {String(auditMode) === "life" ? "Bond · Life" : "Schedule · Health"}
         </text>
       </svg>
     </div>
@@ -236,6 +236,8 @@ export default function Landing() {
   const [showStickyNav, setShowStickyNav] = useState(false);
   const [email, setEmail] = useState("");
   const [phoneLocal, setPhoneLocal] = useState("");
+  const [auditTab, setAuditTab] = useState("health");
+  const auditEntryPath = auditTab === "life" ? "/audit/life/start" : "/audit/start";
 
   const onScrollNav = useCallback(() => {
     setShowStickyNav(window.scrollY > NAV_SHOW_AFTER_PX);
@@ -310,11 +312,11 @@ export default function Landing() {
             </span>
           </Link>
           <Link
-            to="/audit/start"
+            to={auditEntryPath}
             className="inline-flex h-9 sm:h-10 items-center gap-1.5 rounded-lg bg-[#0B2545] px-3 sm:px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#0B2545]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2"
             data-testid="landing-sticky-cta"
           >
-            Audit my policy
+            {auditTab === "life" ? "Life audit" : "Health audit"}
             <ArrowRight className="w-4 h-4" strokeWidth={2.5} aria-hidden="true" />
           </Link>
         </div>
@@ -350,23 +352,62 @@ export default function Landing() {
                 <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-[#0B2545]">
                   India&apos;s first honest insurance audit
                 </p>
+                <div
+                  className="mt-4 inline-flex w-full max-w-md rounded-2xl border border-[#0B2545]/12 bg-white/80 p-1 shadow-sm"
+                  role="tablist"
+                  aria-label="Choose audit type"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={auditTab === "health"}
+                    id="landing-audit-tab-health"
+                    className={cn(
+                      "flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2",
+                      auditTab === "health"
+                        ? "bg-[#0B2545] text-white shadow-sm"
+                        : "text-[#475569] hover:bg-[#0B2545]/[0.06]",
+                    )}
+                    onClick={() => setAuditTab("health")}
+                  >
+                    Health insurance audit
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={auditTab === "life"}
+                    id="landing-audit-tab-life"
+                    className={cn(
+                      "flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2",
+                      auditTab === "life"
+                        ? "bg-[#0B2545] text-white shadow-sm"
+                        : "text-[#475569] hover:bg-[#0B2545]/[0.06]",
+                    )}
+                    onClick={() => setAuditTab("life")}
+                  >
+                    Life insurance audit
+                  </button>
+                </div>
                 <h1
                   id="hero-heading"
-                  className="mt-3 font-heading text-4xl sm:text-5xl lg:text-[3.25rem] font-black tracking-tight text-[#0B2545] leading-[1.05]"
+                  className="mt-5 font-heading text-4xl sm:text-5xl lg:text-[3.25rem] font-black tracking-tight text-[#0B2545] leading-[1.05]"
                 >
                   Insurance, audited.
                 </h1>
                 <p className="mt-5 text-base sm:text-lg text-[#475569] max-w-xl leading-relaxed">
-                  We read your policy so you don&apos;t have to. Get a structured audit of what you actually have,
-                  in 90 seconds.
+                  {auditTab === "life"
+                    ? "We decode CIS and policy bonds against IRDAI-style insurer signals—commission-neutral, evidence-led."
+                    : "We read your policy so you don't have to. Get a structured audit of what you actually have, in 90 seconds."}
                 </p>
                 <div className="mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <Link
-                    to="/audit/start"
+                    to={auditEntryPath}
                     className="inline-flex h-12 sm:h-14 w-full sm:w-auto shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0B2545] px-6 sm:px-8 text-base font-semibold text-white shadow-[0_8px_30px_rgb(11,37,69,0.2)] hover:bg-[#0B2545]/90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#13A8A8] focus-visible:ring-offset-2"
                     data-testid="landing-hero-primary-cta"
                   >
-                    <span className="whitespace-nowrap">Audit my policy</span>
+                    <span className="whitespace-nowrap">
+                      {auditTab === "life" ? "Start life audit" : "Start health audit"}
+                    </span>
                     <ArrowRight className="w-5 h-5 shrink-0" strokeWidth={2.5} aria-hidden="true" />
                   </Link>
                   <button
@@ -380,6 +421,7 @@ export default function Landing() {
               </div>
               <HeroIllustration
                 reduceMotion={reduceMotion}
+                auditMode={auditTab}
                 className="mx-auto lg:mx-0 lg:justify-self-end"
               />
             </div>
@@ -766,7 +808,7 @@ export default function Landing() {
             },
             {
               q: "What insurance types do you audit?",
-              a: "Health insurance today. Life, motor, and home are on the roadmap.",
+              a: "Health insurance (full audit flow) and life insurance (trust panel + document path in beta). Motor and home are on the roadmap.",
             },
             {
               q: "What if I don’t have insurance yet?",
@@ -803,7 +845,12 @@ export default function Landing() {
                 <ul className="mt-3 space-y-2 text-sm">
                   <li>
                     <Link to="/audit/start" className="text-[#475569] hover:text-[#0B2545]">
-                      Audit
+                      Health audit
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/audit/life/start" className="text-[#475569] hover:text-[#0B2545]">
+                      Life audit
                     </Link>
                   </li>
                   <li>

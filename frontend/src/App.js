@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import Stage0Hook from "./pages/Stage0Hook";
 import Landing from "./pages/Landing";
+import LifeAuditStart from "./pages/LifeAuditStart";
 import Stage1Identity from "./pages/Stage1Identity";
 import Stage2Family from "./pages/Stage2Family";
 import Stage3Money from "./pages/Stage3Money";
@@ -30,6 +31,7 @@ export default function App() {
           {/* Marketing landing + audit entry */}
           <Route path="/" element={<Landing />} />
           <Route path="/audit/start" element={<Stage0Hook />} />
+          <Route path="/audit/life/start" element={<LifeAuditStart />} />
 
           {/* Audit flow */}
           <Route path="/audit/identity" element={<Stage1Identity />} />
