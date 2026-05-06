@@ -64,6 +64,29 @@ def _auth_with_fake_db() -> FakeDb:
     return fake
 
 
+def _seed_audit(
+    fake: FakeDb,
+    *,
+    findings: list[dict[str, str]] | None = None,
+    created_at: str = "2026-05-06T10:00:00+00:00",
+) -> None:
+    fake.life_audits.docs.append(
+        {
+            "id": "audit-1",
+            "user_id": "u1",
+            "scores": {"coverage": 70, "cost": 70, "claim_readiness": 70, "gap": 70},
+            "findings": findings or [],
+            "all_findings": findings or [],
+            "breakdowns": {"gap": {"value": 70, "label": "gap", "details": {"sum_assured_inr": 8_000_000}}},
+            "data_version": "life-2026.05",
+            "engine_ms": 5,
+            "generated_at": "2026-05-06T09:59:00+00:00",
+            "created_at": created_at,
+            "warnings": [],
+        }
+    )
+
+
 def test_life_stats_index_ok():
     r = _client().get("/api/life/stats/index")
     assert r.status_code == 200
@@ -212,3 +235,45 @@ def test_get_life_audit_latest_404_when_none():
     app.dependency_overrides.clear()
     assert r.status_code == 404
     assert r.json()["detail"] == "life_audit_not_found"
+
+
+def test_get_life_recommendations_returns_data_when_audit_and_user_exist():
+    fake = _auth_with_fake_db()
+    _seed_audit(fake, findings=[{"type": "underinsured_life", "severity": "red"}])
+    r = _client().get("/api/life/recommendations")
+    app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    recs = r.json()["data"]["recommendations"]
+    assert len(recs) >= 1
+    assert recs[0]["type"] == "term_top_up"
+
+
+def test_get_life_recommendations_404_when_no_audit():
+    _auth_with_fake_db()
+    r = _client().get("/api/life/recommendations")
+    app.dependency_overrides.clear()
+    assert r.status_code == 404
+    assert r.json()["detail"] == "life_audit_not_found"
+
+
+def test_get_life_recommendations_404_when_user_missing():
+    fake = FakeDb()
+    app.state.db = fake
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "u1", "mobile": "9999999999"}
+    app.dependency_overrides[verify_csrf] = lambda: None
+    _seed_audit(fake, findings=[{"type": "underinsured_life", "severity": "red"}])
+    r = _client().get("/api/life/recommendations")
+    app.dependency_overrides.clear()
+    assert r.status_code == 404
+    assert r.json()["detail"] == "user_not_found"
+
+
+def test_get_life_recommendations_returns_stay_with_current_for_clean_audit():
+    fake = _auth_with_fake_db()
+    _seed_audit(fake, findings=[])
+    r = _client().get("/api/life/recommendations")
+    app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    recs = r.json()["data"]["recommendations"]
+    assert len(recs) == 1
+    assert recs[0]["type"] == "stay_with_current"

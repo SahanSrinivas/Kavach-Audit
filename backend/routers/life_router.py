@@ -18,6 +18,7 @@ from auth import get_current_user, verify_csrf
 from services.life.audit.runner import run_life_audit
 from services.life.audit.types import LifeScheduleInput, LifeUserProfile
 from services.life.extract_schedule import extract_life_schedule
+from services.life.recommendations import generate as generate_life_recommendations
 from services.life.llm_schedule import (
     llm_metrics_snapshot,
     llm_refine_life_schedule,
@@ -309,3 +310,33 @@ async def get_latest_life_audit(
     if not row:
         raise HTTPException(status_code=404, detail="life_audit_not_found")
     return _ok({"audit": row})
+
+
+@router.get("/recommendations")
+async def get_life_recommendations(
+    request: Request,
+    current: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Generate recommendations from the user's latest life audit."""
+    db = request.app.state.db
+    audit_row = await db.life_audits.find_one(
+        {"user_id": current["user_id"]},
+        {"_id": 0},
+        sort=[("created_at", -1)],
+    )
+    if not audit_row:
+        raise HTTPException(status_code=404, detail="life_audit_not_found")
+
+    user_doc = await db.users.find_one({"id": current["user_id"]}, {"_id": 0})
+    if not user_doc:
+        user_doc = await db.users.find_one({"user_id": current["user_id"]}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="user_not_found")
+
+    profile = LifeUserProfile.from_dict(user_doc)
+    recommendations = generate_life_recommendations(audit_row, profile)
+    return _ok(
+        {
+            "recommendations": [rec.to_dict() for rec in recommendations],
+        }
+    )
