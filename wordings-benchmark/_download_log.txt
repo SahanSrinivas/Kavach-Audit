@@ -1,0 +1,11 @@
+# benchmark_insurer_wordings — 2026-05-05T02:18:16Z
+# firecrawl: on
+
+OK SBI General Insurance | Super Health Insurance (incl. Platinum Infinite) via direct (url 1/2) 830,062b 3352ms → wordings-benchmark/sbi_general_insurance/super_health_insurance_incl_platinum_infinite.pdf
+
+OK Go Digit General Insurance | Digit Health Insurance Policy via direct (url 1/1) 4,702,069b 1973ms → wordings-benchmark/go_digit_general_insurance/digit_health_insurance_policy.pdf
+
+OK Future Generali India Insurance | Health Total via direct (url 1/1) 743,225b 3388ms → wordings-benchmark/future_generali_india_insurance/health_total.pdf
+
+
+# Summary: 3 ok, 0 failed

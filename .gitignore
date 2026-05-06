@@ -125,5 +125,12 @@ credentials.json
 # sum insured, premium). These should never reach git history. They land
 # at the repo root during local dogfooding (smoke tests, parser scripts).
 *.pdf
+# --- Insurance wording downloads ---
+# Downloaded insurer policy wording PDFs are regeneratable artifacts,
+# not source. Scripts that produce them are committed; outputs aren't.
+# Logs and READMEs ARE committed for provenance.
+wordings/*.pdf
+wordings-latest/*.pdf
+wordings-benchmark/*.pdf
 # But DO check in spec docs and any sample PDFs we explicitly want versioned
 !docs/**/*.pdf

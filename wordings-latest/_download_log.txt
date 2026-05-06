@@ -1,0 +1,61 @@
+# Wordings LATEST download log — 2026-05-05T02:09:00Z
+# 14 targets, firecrawl fallback: enabled
+
+[2026-05-05T02:09:00Z] OK    Niva Bupa | ReAssure 2.0 Platinum+  (via direct)
+  tried:  2 URL(s)
+  size:   608,348 bytes  (2491ms)
+  saved:  wordings-latest/niva_bupa/reassure_2_0_platinum.pdf
+[2026-05-05T02:09:03Z] OK    New India Assurance | Floater Mediclaim  (via direct)
+  tried:  1 URL(s)
+  size:   944,630 bytes  (8946ms)
+  saved:  wordings-latest/new_india_assurance/floater_mediclaim.pdf
+[2026-05-05T02:09:12Z] OK    ICICI Lombard | Elevate  (via direct)
+  tried:  1 URL(s)
+  size:   891,156 bytes  (1375ms)
+  saved:  wordings-latest/icici_lombard/elevate.pdf
+[2026-05-05T02:09:13Z] OK    Bajaj Allianz General | Health Guard  (via direct)
+  tried:  1 URL(s)
+  size:   1,355,654 bytes  (997ms)
+  saved:  wordings-latest/bajaj_allianz_general/health_guard.pdf
+[2026-05-05T02:09:14Z] OK    Aditya Birla Health | Activ One MAX  (via direct)
+  tried:  1 URL(s)
+  size:   720,835 bytes  (4718ms)
+  saved:  wordings-latest/aditya_birla_health/activ_one_max.pdf
+[2026-05-05T02:09:19Z] OK    HDFC ERGO General | Optima Secure  (via direct)
+  tried:  1 URL(s)
+  size:   625,359 bytes  (2030ms)
+  saved:  wordings-latest/hdfc_ergo_general/optima_secure.pdf
+[2026-05-05T02:09:21Z] OK    Care Health | Supreme  (via direct)
+  tried:  1 URL(s)
+  size:   1,772,653 bytes  (3489ms)
+  saved:  wordings-latest/care_health/supreme.pdf
+[2026-05-05T02:09:24Z] OK    Star Health | Comprehensive  (via direct)
+  tried:  2 URL(s)
+  size:   1,444,634 bytes  (3243ms)
+  saved:  wordings-latest/star_health/comprehensive.pdf
+[2026-05-05T02:09:28Z] OK    Star Health | Senior Citizens Red Carpet  (via direct)
+  tried:  2 URL(s)
+  size:   1,171,070 bytes  (3425ms)
+  saved:  wordings-latest/star_health/senior_citizens_red_carpet.pdf
+[2026-05-05T02:09:31Z] OK    ManipalCigna | ProHealth Prime  (via direct)
+  tried:  3 URL(s)
+  size:   980,413 bytes  (2185ms)
+  saved:  wordings-latest/manipalcigna/prohealth_prime.pdf
+[2026-05-05T02:09:33Z] OK    United India Insurance | Family Medicare  (via direct)
+  tried:  2 URL(s)
+  size:   1,583,059 bytes  (183276ms)
+  saved:  wordings-latest/united_india_insurance/family_medicare.pdf
+[2026-05-05T02:12:36Z] OK    Oriental Insurance | Happy Family Floater  (via direct)
+  tried:  3 URL(s)
+  size:   1,220,124 bytes  (2447ms)
+  saved:  wordings-latest/oriental_insurance/happy_family_floater.pdf
+[2026-05-05T02:12:39Z] OK    Tata AIG General | MediCare Premier  (via direct)
+  tried:  1 URL(s)
+  size:   234,519 bytes  (2463ms)
+  saved:  wordings-latest/tata_aig_general/medicare_premier.pdf
+[2026-05-05T02:12:41Z] OK    National Insurance | Mediclaim  (via direct)
+  tried:  1 URL(s)
+  size:   1,307,077 bytes  (2371ms)
+  saved:  wordings-latest/national_insurance/mediclaim.pdf
+
+# Summary: 14 ok, 0 failed (of 14 targets)
