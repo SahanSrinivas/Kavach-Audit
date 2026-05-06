@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="K">
+  <defs>
+    <linearGradient id="kv" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0B2545"/>
+      <stop offset="48%" stop-color="#103562"/>
+      <stop offset="100%" stop-color="#13A8A8"/>
+    </linearGradient>
+  </defs>
+  <!-- Kavachly: navy ? teal gradient, squircle, white K -->
+  <rect width="32" height="32" rx="8" fill="url(#kv)"/>
+  <path fill="#FFFFFF" d="M7 6h5v8l9-8h5L15.5 16L26 26h-5l-9-8.5V26H7V6z"/>
+</svg>
