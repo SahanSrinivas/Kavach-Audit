@@ -23,9 +23,92 @@ from pydantic import ValidationError
 from services.parser.canonical_vocabulary import EXCLUSION_PHRASE_MAP
 from services.parser.insurer_canonicalizer import canonicalize_insurer
 from services.parser.types import (
+    FieldConfidenceUi,
     ParseConfidence,
     ParsedPolicy,
 )
+
+
+# Rows always emitted so the UI shows a stable checklist. Keys align with parser /
+# Claude `fields_with_low_confidence` entries where possible.
+#
+# NOTE: Health pipeline confidence is binary today (flagged or not).
+# Mapping to UI tiers honestly:
+# - Flagged in fields_with_low_confidence → tier="low", score=None
+# - Unflagged → tier="high", score=None
+# No medium tier; we don't have the data granularity to support it.
+# TODO(health-confidence-richer): Update Claude system prompt to return per-field
+# confidence floats. Then health gets the same tier resolution as life.
+_HEALTH_FIELD_UI_ROWS: tuple[tuple[str, str, bool], ...] = (
+    ("sum_insured", "Sum Insured", True),
+    ("premium_annual", "Annual Premium", True),
+    ("policy_end_date", "Policy End Date", False),
+    ("room_rent_cap", "Room Rent Cap", True),
+    ("copay_percent", "Copay %", True),
+    ("ped_waiting_months", "PED Waiting Period", True),
+    ("insurer_name", "Insurer", False),
+    ("plan_name", "Product Name", False),
+    ("policy_number", "Policy Number", False),
+)
+
+# Alternate keys Claude occasionally emits — map to canonical row keys above.
+_HEALTH_LOW_CONF_KEY_TO_CANONICAL: dict[str, str] = {
+    "ped_waiting_period_months": "ped_waiting_months",
+    "product_name": "plan_name",
+}
+
+_HEALTH_UI_CANONICAL_KEYS: frozenset[str] = frozenset(row[0] for row in _HEALTH_FIELD_UI_ROWS)
+
+
+def _health_low_conflicts_canonical(canonical_key: str, low: frozenset[str]) -> bool:
+    if canonical_key in low:
+        return True
+    for alt_key, canon in _HEALTH_LOW_CONF_KEY_TO_CANONICAL.items():
+        if canon == canonical_key and alt_key in low:
+            return True
+    return False
+
+
+def _health_low_key_covered_by_table(low_key: str) -> bool:
+    if low_key in _HEALTH_UI_CANONICAL_KEYS:
+        return True
+    return low_key in _HEALTH_LOW_CONF_KEY_TO_CANONICAL
+
+
+def _build_health_field_confidence_ui(low_confidence_fields: list[str]) -> list[FieldConfidenceUi]:
+    """Binary tier rows for health — see module-level NOTE on ParsedPolicy."""
+
+    low = frozenset(low_confidence_fields)
+    out: list[FieldConfidenceUi] = []
+
+    for field_key, label, numeric in _HEALTH_FIELD_UI_ROWS:
+        is_low = _health_low_conflicts_canonical(field_key, low)
+        tier = "low" if is_low else "high"
+        out.append(
+            FieldConfidenceUi(
+                fieldKey=field_key,
+                label=label,
+                score=None,
+                tier=tier,
+                verifyInPdf=tier != "high",
+                numericField=numeric,
+            )
+        )
+
+    for lk in sorted(low):
+        if not _health_low_key_covered_by_table(lk):
+            out.append(
+                FieldConfidenceUi(
+                    fieldKey=lk,
+                    label=lk,
+                    score=None,
+                    tier="low",
+                    verifyInPdf=True,
+                    numericField=False,
+                )
+            )
+
+    return out
 
 logger = logging.getLogger("kavach.parser")
 
@@ -128,6 +211,9 @@ def validate_and_normalize(raw_response: Mapping[str, Any]) -> ParsedPolicy:
                 warnings=warnings,
             )
         })
+
+    ui = _build_health_field_confidence_ui(parsed.confidence.fields_with_low_confidence)
+    parsed = parsed.model_copy(update={"field_confidence_ui": ui})
 
     return parsed
 

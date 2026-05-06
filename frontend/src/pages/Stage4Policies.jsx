@@ -18,6 +18,7 @@ import BottomCTA from "../components/BottomCTA";
 import KvSlider from "../components/KvSlider";
 import { formatINR } from "../lib/currency";
 import api from "../lib/api";
+import FieldConfidenceBadge from "@/components/shared/FieldConfidenceBadge";
 
 const PARSE_HINTS = [
   "Reading sub-limits…",
@@ -97,6 +98,9 @@ function ParsingFile({ file }) {
 }
 
 function ParsedPolicyCard({ policy }) {
+  const uiList = policy.parser_output?.field_confidence_ui ?? [];
+  const uiByKey = Object.fromEntries(uiList.map((row) => [row.fieldKey, row]));
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -117,14 +121,32 @@ function ParsedPolicyCard({ policy }) {
         <Building2 className="w-8 h-8 text-[#13A8A8]/60" strokeWidth={1.4} />
       </div>
       <div className="mt-4 grid grid-cols-2 gap-3 pt-4 border-t border-[#E1E5EB]">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Sum insured</p>
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Sum insured</p>
+            {uiByKey.sum_insured ? (
+              <FieldConfidenceBadge
+                tier={uiByKey.sum_insured.tier}
+                score={typeof uiByKey.sum_insured.score === "number" ? uiByKey.sum_insured.score : null}
+                verifyInPdf={uiByKey.sum_insured.verifyInPdf}
+              />
+            ) : null}
+          </div>
           <p className="font-heading text-lg font-bold text-[#0B2545]">
             {formatINR(policy.sum_insured, { short: true })}
           </p>
         </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Annual premium</p>
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Annual premium</p>
+            {uiByKey.premium_annual ? (
+              <FieldConfidenceBadge
+                tier={uiByKey.premium_annual.tier}
+                score={typeof uiByKey.premium_annual.score === "number" ? uiByKey.premium_annual.score : null}
+                verifyInPdf={uiByKey.premium_annual.verifyInPdf}
+              />
+            ) : null}
+          </div>
           <p className="font-heading text-lg font-bold text-[#0B2545]">{formatINR(policy.premium)}</p>
         </div>
       </div>

@@ -24,8 +24,10 @@ from services.parser.insurer_canonicalizer import canonicalize_insurer
 from services.parser.prompt_builder import build_parsing_prompt
 from services.parser.response_validator import (
     InvalidParseResponseError,
+    _coerce_types,
     validate_and_normalize,
 )
+from services.parser.types import ParsedPolicy
 
 
 # ==========================================================================
@@ -771,6 +773,103 @@ def test_to_engine_shape_handles_all_nulls_without_crashing() -> None:
     assert flat["ped_waiting_years"] is None
     # plan_name passes through (None when Claude couldn't extract a product name)
     assert flat["plan_name"] is None
+
+
+# ==========================================================================
+# field_confidence_ui — health Path A (binary tier, score=None)
+# ==========================================================================
+
+def test_field_confidence_ui_all_high_when_no_low_flags() -> None:
+    out = validate_and_normalize(_minimal_response())
+    assert len(out.field_confidence_ui) == 9
+    for row in out.field_confidence_ui:
+        assert row.score is None
+        assert row.tier == "high"
+        assert row.verifyInPdf is False
+
+
+def test_field_confidence_ui_sum_insured_low_from_confidence_flag() -> None:
+    raw = _minimal_response()
+    raw["confidence"]["fields_with_low_confidence"] = ["sum_insured"]
+    out = validate_and_normalize(raw)
+    by = {x.fieldKey: x for x in out.field_confidence_ui}
+    assert by["sum_insured"].tier == "low"
+    assert by["sum_insured"].score is None
+    assert by["sum_insured"].verifyInPdf is True
+    assert by["premium_annual"].tier == "high"
+
+
+def test_field_confidence_ui_includes_stable_health_field_keys() -> None:
+    out = validate_and_normalize(_minimal_response())
+    keys = {x.fieldKey for x in out.field_confidence_ui}
+    assert keys >= {
+        "sum_insured",
+        "premium_annual",
+        "policy_end_date",
+        "room_rent_cap",
+        "copay_percent",
+        "ped_waiting_months",
+        "insurer_name",
+        "plan_name",
+        "policy_number",
+    }
+
+
+def test_field_confidence_ui_unknown_low_field_gets_defensive_row() -> None:
+    raw = _minimal_response()
+    raw["confidence"]["fields_with_low_confidence"] = ["totally_unknown_parser_key"]
+    out = validate_and_normalize(raw)
+    extra = next(x for x in out.field_confidence_ui if x.fieldKey == "totally_unknown_parser_key")
+    assert extra.label == "totally_unknown_parser_key"
+    assert extra.tier == "low"
+    assert extra.score is None
+    assert extra.numericField is False
+
+
+def test_field_confidence_ui_product_name_alias_maps_to_plan_name() -> None:
+    raw = _minimal_response()
+    raw["confidence"]["fields_with_low_confidence"] = ["product_name"]
+    out = validate_and_normalize(raw)
+    by = {x.fieldKey: x for x in out.field_confidence_ui}
+    assert by["plan_name"].tier == "low"
+    assert "product_name" not in by
+
+
+def test_backward_compat_policy_json_without_field_confidence_ui_field() -> None:
+    payload = dict(_minimal_response())
+    coerced = _coerce_types(payload)
+    assert "field_confidence_ui" not in coerced
+    parsed = ParsedPolicy.model_validate(coerced)
+    assert parsed.field_confidence_ui == []
+
+
+def test_field_confidence_ui_serializes_in_model_dump() -> None:
+    out = validate_and_normalize(_minimal_response())
+    dumped = out.model_dump()
+    assert isinstance(dumped.get("field_confidence_ui"), list)
+    assert len(dumped["field_confidence_ui"]) >= 9
+    first = dumped["field_confidence_ui"][0]
+    assert first["tier"] == "high"
+    assert first.get("score") is None
+
+
+def test_health_field_confidence_ui_only_high_or_low_tiers() -> None:
+    """Health side has binary confidence today. No 'medium' tier until
+    Claude prompt returns per-field scores (Path A guard).
+    """
+    raw = _minimal_response()
+    raw["confidence"]["fields_with_low_confidence"] = [
+        "sum_insured",
+        "premium_annual",
+        "totally_unknown_parser_key",
+    ]
+    result = validate_and_normalize(raw)
+    tiers = {row.tier for row in result.field_confidence_ui}
+    assert tiers <= {"high", "low"}, (
+        f"Health field_confidence_ui should only have high/low tiers; "
+        f"got {tiers}. If introducing 'medium' here, ensure scores are "
+        f"derived from real signals, not synthetic numbers."
+    )
 
 
 # ==========================================================================

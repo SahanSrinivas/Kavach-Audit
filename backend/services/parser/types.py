@@ -216,6 +216,21 @@ class ParseConfidence(BaseModel):
         return "medium" if v is None else v
 
 
+class FieldConfidenceUi(BaseModel):
+    """Per-field badge row for health parser_output (and parity with life extract UI).
+
+    ``score`` is optional: health uses ``None`` with binary high/low tiers only; life
+    passes numeric scores when available.
+    """
+    model_config = ConfigDict(extra="ignore")
+    fieldKey: str
+    label: str
+    score: Optional[float] = None
+    tier: ConfidenceLevel
+    verifyInPdf: bool
+    numericField: bool
+
+
 class ParsedPolicy(BaseModel):
     """Full rich output from a successful parse. Stored as `parser_output`
     on the policy doc. The router also writes a flattened `parsed_fields`
@@ -246,6 +261,7 @@ class ParsedPolicy(BaseModel):
     is_employer_group: NullableBool = False
     parsed_fields: ParsedFieldsRich = Field(default_factory=ParsedFieldsRich)
     confidence: ParseConfidence = Field(default_factory=ParseConfidence)
+    field_confidence_ui: list[FieldConfidenceUi] = Field(default_factory=list)
 
     _v_members = field_validator("covered_members", mode="before")(_filter_covered_members)
 
