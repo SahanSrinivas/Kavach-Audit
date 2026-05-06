@@ -106,6 +106,9 @@ async def ensure_indexes():
     await db.policies.create_index("user_id")
     await db.audits.create_index([("user_id", 1), ("generated_at", -1)])
     await db.parse_attempts.create_index([("user_id", 1), ("created_at", -1)])
+    await db.parse_attempts.create_index(
+        [("pipeline", 1), ("preflight_outcome", 1), ("created_at", -1)],
+    )
     await db.family_members.create_index("user_id")
     await db.early_access.create_index("user_id")
     # Beta allowlist: unique compound index prevents duplicate (user, feature)

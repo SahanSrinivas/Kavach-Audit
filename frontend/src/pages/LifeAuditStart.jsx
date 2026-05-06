@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, FileText, Loader2, Upload } from "lucide-react";
@@ -10,6 +10,45 @@ import api from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 const SCHEDULE_STORAGE_KEY = "kavachly_life_schedule_v1";
+
+const PREFLIGHT_HINT_MESSAGES = {
+  resume:
+    "Looks like a resume. We need your Customer Information Sheet (CIS) or policy bond.",
+  bank_statement: "That looks like a bank statement. Try your CIS or policy bond instead.",
+  salary_slip: "That looks like a salary slip. We need your CIS or policy bond.",
+  loan_agreement: "That looks like a loan agreement. Try your life insurance CIS or policy bond.",
+  tax_document: "That looks like a tax document. We need your CIS or policy bond.",
+  lease: "That looks like a lease agreement. We need your CIS or policy bond.",
+  invoice: "That looks like an invoice. We need your CIS or policy bond.",
+  unknown: "We couldn't recognize this as a life insurance document. Try your CIS or policy bond from your insurer.",
+};
+
+const STRUCTURAL_REJECT_MESSAGES = {
+  encrypted_pdf: "This PDF is password-protected. Remove the password and re-upload.",
+  pdf_too_many_pages: "This PDF is too long. Life policy documents are usually under 150 pages.",
+  pdf_too_few_pages: "This PDF appears empty. Make sure you uploaded the right file.",
+  pdf_too_large: "This file is too large. Try a smaller version.",
+  pdf_too_small: "This file is too small to be a real policy document.",
+  invalid_pdf: "This doesn't appear to be a valid PDF.",
+  not_a_pdf: "Please upload a PDF file.",
+};
+
+const DEFAULT_TOAST_DURATION = 6000;
+
+/** Maps known backend `detail` string codes → copy; unknown strings return null. */
+function mappedStringDetail(value) {
+  const map = {
+    cis_must_be_pdf: "Please choose a PDF for your Customer Information Sheet (CIS).",
+    bond_must_be_pdf: "Please choose a PDF for your policy bond.",
+    cis_empty: "The CIS file looks empty.",
+    bond_empty: "The policy bond file looks empty.",
+    cis_too_large: "The CIS file is too large for this upload.",
+    bond_too_large: "The policy bond file is too large for this upload.",
+    cis_and_bond_required: "Choose both PDFs — Customer Information Sheet and policy bond.",
+    rate_limited: "Too many upload attempts — please wait a minute and try again.",
+  };
+  return typeof value === "string" && map[value] != null ? map[value] : null;
+}
 
 export default function LifeAuditStart() {
   const formId = useId();
@@ -25,7 +64,34 @@ export default function LifeAuditStart() {
   const [cisFile, setCisFile] = useState(null);
   const [bondFile, setBondFile] = useState(null);
   const [extracting, setExtracting] = useState(false);
+  const cisInputRef = useRef(null);
+  const bondInputRef = useRef(null);
+  /** Which upload the user touched most recently ('cis' | 'bond'); used only for labeling toasts — backend gates CIS then bond so this is imperfect. */
+  const lastUploadedRoleRef = useRef(null);
   const { user } = useAuth();
+
+  const uploadLabelShort = () => {
+    const r = lastUploadedRoleRef.current;
+    if (r === "cis") return "Customer Information Sheet (CIS)";
+    if (r === "bond") return "Policy bond";
+    return "your CIS or policy bond PDF";
+  };
+
+  const resetCisUpload = () => {
+    setCisFile(null);
+    if (cisInputRef.current) cisInputRef.current.value = "";
+  };
+
+  const resetBondUpload = () => {
+    setBondFile(null);
+    if (bondInputRef.current) bondInputRef.current.value = "";
+  };
+
+  /** After a destructive extract error, clear uploads so `<input>` can fire `change` for the same file again. */
+  const resetBothFileInputsAfterReject = () => {
+    resetCisUpload();
+    resetBondUpload();
+  };
 
   const applyBundle = (bundle, fyKey) => {
     const normalized = (bundle.insurers || []).map(normalizeInsurerRow);
@@ -127,14 +193,84 @@ export default function LifeAuditStart() {
       }
       navigate(nextPath);
     } catch (e) {
-      const detail = e.response?.data?.detail;
+      const status = e.response?.status;
+      const detailRaw = e.response?.data?.detail;
+
+      console.error("[life/extract]", { status, detail: detailRaw }, e);
+
+      const detailObj =
+        detailRaw !== null && typeof detailRaw === "object" && !Array.isArray(detailRaw) ? detailRaw : null;
+
+      /** Which upload to mention when the backend does not distinguish CIS vs bond (gates run CIS → bond). */
+      const labeledBody = (text) =>
+        `${uploadLabelShort()} — ${text}`;
+
+      // Preflight reject (resume / statement / invoice / … envelope)
+      if (status === 400 && detailObj && detailObj.error === "not_insurance_document") {
+        const hint =
+          typeof detailObj.detected_type_hint === "string" && detailObj.detected_type_hint
+            ? detailObj.detected_type_hint
+            : "unknown";
+        const body = PREFLIGHT_HINT_MESSAGES[hint] || PREFLIGHT_HINT_MESSAGES.unknown;
+        toast.error("Wrong document type", {
+          description: labeledBody(body),
+          duration: DEFAULT_TOAST_DURATION,
+        });
+        resetBothFileInputsAfterReject();
+        return;
+      }
+
+      // Structural rejects — `error` is one of the known structural codes from life_router
+      if (status === 400 && detailObj && typeof detailObj.error === "string") {
+        const code = detailObj.error;
+        if (Object.prototype.hasOwnProperty.call(STRUCTURAL_REJECT_MESSAGES, code)) {
+          const body =
+            STRUCTURAL_REJECT_MESSAGES[code] ||
+            "Something went wrong with this PDF. Please try a different file.";
+          toast.error("Couldn't process this PDF", {
+            description: labeledBody(body),
+            duration: DEFAULT_TOAST_DURATION,
+          });
+          resetBothFileInputsAfterReject();
+          return;
+        }
+      }
+
+      if (status === 429 || detailRaw === "rate_limited") {
+        toast.error("Too many attempts", {
+          description:
+            mappedStringDetail(typeof detailRaw === "string" ? detailRaw : "rate_limited") ||
+            mappedStringDetail("rate_limited") ||
+            "Please wait briefly and retry.",
+          duration: DEFAULT_TOAST_DURATION,
+        });
+        return;
+      }
+
+      // Router validation strings (wrong extension, empty file, …) — do not lump with preflight envelopes
+      if (typeof detailRaw === "string") {
+        const friendly = mappedStringDetail(detailRaw);
+        if (friendly != null) {
+          toast.error("Upload issue", {
+            description: friendly,
+            duration: DEFAULT_TOAST_DURATION,
+          });
+          resetBothFileInputsAfterReject();
+          return;
+        }
+      }
+
       const msg =
-        typeof detail === "string"
-          ? detail
-          : Array.isArray(detail)
-            ? detail.map((d) => d.msg || d).join(", ")
-            : e.message;
-      toast.error(msg || "Could not extract from PDFs. Use text-based PDFs if possible.");
+        typeof detailRaw === "string"
+          ? detailRaw
+          : Array.isArray(detailRaw)
+            ? detailRaw.map((d) => d.msg || d).join(", ")
+            : detailObj?.message || detailObj?.detail || e.message;
+      toast.error(msg || "Could not extract from PDFs. Use text-based PDFs if possible.", {
+        duration: DEFAULT_TOAST_DURATION,
+      });
+      /** Unknown client errors — still reset inputs so stale files cannot block a clean retry */
+      if (status >= 400 && status < 500) resetBothFileInputsAfterReject();
     } finally {
       setExtracting(false);
     }
@@ -193,10 +329,14 @@ export default function LifeAuditStart() {
                 </span>
                 <span className="mt-2 text-xs text-[#64748B]">IRDAI-mandated simple-language summary</span>
                 <input
+                  ref={cisInputRef}
                   type="file"
                   accept="application/pdf"
                   className="sr-only"
-                  onChange={(e) => setCisFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    lastUploadedRoleRef.current = "cis";
+                    setCisFile(e.target.files?.[0] ?? null);
+                  }}
                 />
                 <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#13A8A8] break-all">
                   <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -210,10 +350,14 @@ export default function LifeAuditStart() {
                 </span>
                 <span className="mt-2 text-xs text-[#64748B]">Issued contract after underwriting</span>
                 <input
+                  ref={bondInputRef}
                   type="file"
                   accept="application/pdf"
                   className="sr-only"
-                  onChange={(e) => setBondFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => {
+                    lastUploadedRoleRef.current = "bond";
+                    setBondFile(e.target.files?.[0] ?? null);
+                  }}
                 />
                 <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#13A8A8] break-all">
                   <Upload className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -26,7 +28,18 @@ from services.life.llm_schedule import (
 )
 from services.life.overlap import build_overlap_hints
 from services.life.pdf_text import pdf_bytes_to_text
-from services.rate_limit import enforce_extract_rate_limit, rate_limit_metrics_snapshot
+from services.life.preflight import (
+    OUTCOME_REJECT as LIFE_PF_REJECT,
+    OUTCOME_SKIPPED as LIFE_PF_SKIPPED,
+    OUTCOME_STRUCTURAL as LIFE_PF_STRUCTURAL,
+    preflight_check_life,
+)
+from services.parser.preflight import PreflightResult
+from services.rate_limit import (
+    client_ip_from_request,
+    enforce_extract_rate_limit,
+    rate_limit_metrics_snapshot,
+)
 
 logger = logging.getLogger("kavach.life")
 
@@ -87,8 +100,125 @@ async def _require_pdf(upload: UploadFile, label: str) -> bytes:
     return raw
 
 
-@router.post("/extract", dependencies=[Depends(enforce_extract_rate_limit)])
+def _life_client_ip_hash(request: Request) -> str | None:
+    """SHA-256 hex of client IP, truncated — never store raw IPs."""
+    ip = client_ip_from_request(request).strip()
+    if not ip or ip == "unknown":
+        return None
+    digest = hashlib.sha256(ip.encode("utf-8")).hexdigest()
+    return digest[:32]
+
+
+def _life_preflight_parse_outcome(pf_outcome: str) -> str:
+    """Normalize for Mongo + analytics."""
+    if pf_outcome == LIFE_PF_SKIPPED:
+        return "skipped"
+    if pf_outcome == LIFE_PF_STRUCTURAL:
+        return "structural_reject"
+    return pf_outcome
+
+
+async def _log_life_preflight_attempt(
+    db: Any,
+    *,
+    user_id: str | None,
+    preflight: PreflightResult,
+    ip_hash: str | None,
+) -> None:
+    await db.parse_attempts.insert_one(
+        {
+            "_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "pipeline": "life",
+            "preflight_outcome": _life_preflight_parse_outcome(preflight.outcome),
+            "preflight_score": preflight.score,
+            "preflight_signals": dict(preflight.signals),
+            "preflight_ms": preflight.elapsed_ms,
+            "preflight_page_count": preflight.page_count,
+            "detected_type_hint": preflight.detected_type_hint,
+            "preflight_error": preflight.error,
+            "ip_hash": ip_hash,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+
+
+def _life_structural_http_detail(
+    err_code: str, page_count: int | None = None,
+) -> dict[str, Any]:
+    """Structured 400 for life extract structural rejects (parity with policies preflight envelope)."""
+    messages: dict[str, str] = {
+        "not_a_pdf": "File doesn't appear to be a PDF.",
+        "invalid_pdf": "File doesn't appear to be a PDF.",
+        "encrypted_pdf": "This PDF is password-protected. Remove the password and try again.",
+        "pdf_too_many_pages": (
+            "PDF has too many pages. Life policy documents are usually 1-100 pages."
+        ),
+        "pdf_too_few_pages": "PDF appears empty. Make sure you uploaded the right file.",
+        "pdf_too_small": (
+            "This file is too small to be a valid PDF. Try re-downloading your CIS or bond."
+        ),
+        "pdf_too_large": (
+            "This file is too large for this upload endpoint. Try a shorter CIS/bond PDF."
+        ),
+    }
+    user_actions = {
+        "not_a_pdf": "Upload a real PDF (CIS or policy bond from your insurer).",
+        "invalid_pdf": "Upload a real PDF (CIS or policy bond from your insurer).",
+        "encrypted_pdf": "Remove PDF password protection and upload again.",
+        "pdf_too_many_pages": "Use the CIS or bond PDF (usually a few pages), not a full wording pack.",
+        "pdf_too_few_pages": "Re-download the CIS or bond from your insurer portal or email.",
+        "pdf_too_small": "Ensure the PDF downloaded completely and wasn't truncated.",
+        "pdf_too_large": "Compress or split large files per insurer guidance, or use a smaller excerpt.",
+    }
+    api_err = err_code if err_code != "invalid_pdf" else "not_a_pdf"
+    return {
+        "error": api_err,
+        "message": messages.get(err_code, messages["invalid_pdf"]),
+        "user_action": user_actions.get(err_code, user_actions["invalid_pdf"]),
+        "page_count": page_count,
+    }
+
+
+def _life_not_insurance_detail(preflight: PreflightResult) -> dict[str, Any]:
+    return {
+        "error": "not_insurance_document",
+        "preflight_score": preflight.score,
+        "detected_type_hint": preflight.detected_type_hint,
+        "message": (
+            "This doesn't look like a life insurance document. We expect a "
+            "Customer Information Sheet (CIS) or policy bond from an Indian life insurer."
+        ),
+        "user_action": (
+            "Try your CIS or policy bond — usually a 1-3 page PDF with "
+            "sum assured, premium, and nominee details."
+        ),
+    }
+
+
+async def _life_preflight_gate(
+    pdf_bytes: bytes,
+    *,
+    db: Any,
+    user_id: str | None,
+    ip_hash: str | None,
+) -> PreflightResult:
+    outcome = preflight_check_life(pdf_bytes)
+    await _log_life_preflight_attempt(db, user_id=user_id, preflight=outcome, ip_hash=ip_hash)
+    if outcome.outcome == LIFE_PF_STRUCTURAL:
+        raw_err = outcome.error or "invalid_pdf"
+        raise HTTPException(
+            status_code=400,
+            detail=_life_structural_http_detail(raw_err, outcome.page_count or None),
+        )
+    if outcome.outcome == LIFE_PF_REJECT:
+        raise HTTPException(status_code=400, detail=_life_not_insurance_detail(outcome))
+    return outcome
+
+
+@router.post("/extract")
 async def extract_life_documents(
+    request: Request,
     cis: Optional[UploadFile] = File(None),
     bond: Optional[UploadFile] = File(None),
     insurer_id: str = Form(""),
@@ -99,6 +229,20 @@ async def extract_life_documents(
 
     cis_bytes = await _require_pdf(cis, "cis")
     bond_bytes = await _require_pdf(bond, "bond")
+
+    db = request.app.state.db
+    user_id_life_extract: str | None = None
+    ip_hash = _life_client_ip_hash(request)
+
+    await _life_preflight_gate(
+        cis_bytes, db=db, user_id=user_id_life_extract, ip_hash=ip_hash,
+    )
+    await _life_preflight_gate(
+        bond_bytes, db=db, user_id=user_id_life_extract, ip_hash=ip_hash,
+    )
+
+    # Rate limit counts only uploads that survived preflight (cheap reject path is free).
+    enforce_extract_rate_limit(request)
 
     try:
         cis_text = pdf_bytes_to_text(cis_bytes, cis.filename or "cis.pdf")

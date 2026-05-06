@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Iterator
+from unittest.mock import MagicMock
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("USE_MOCKS", "true")
@@ -18,28 +21,39 @@ if str(BACKEND_DIR) not in sys.path:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import services.rate_limit as rate_limit_module  # noqa: E402
 from auth import get_current_user, verify_csrf  # noqa: E402
 from routers import life_router  # noqa: E402
 from server import app  # noqa: E402
+from services.life.extract_schedule import extract_life_schedule as real_extract_life_schedule  # noqa: E402
 from tests._fake_mongo import FakeDb  # noqa: E402
+from tests.life_preflight_fixtures import (  # noqa: E402
+    encrypted_minimal_life_pdf,
+    mini_borderline_life_pdf,
+    resume_pdf,
+)
 
 
 def _mini_pdf_bytes() -> bytes:
-    import fitz
-
-    doc = fitz.open()
-    page = doc.new_page()
-    page.insert_text(
-        (72, 100),
-        "Sum Assured Rs. 50,00,000\nPolicy Term 25 years\nModal Premium Rs. 12,000 yearly\nNominee as per proposal",
-    )
-    raw = doc.tobytes()
-    doc.close()
-    return raw
+    """Synthetic CIS-like PDF for integration tests (borderline band; ≥10 KiB)."""
+    return mini_borderline_life_pdf()
 
 
 def _client() -> TestClient:
     return TestClient(app)
+
+
+@contextmanager
+def _life_extract_test_db() -> Iterator[FakeDb]:
+    """Extract uses async Motor; TestClient + thread pool can race with loop teardown.
+    Use in-memory FakeDb for parse_attempts during extract tests."""
+    prev = app.state.db
+    fake = FakeDb()
+    app.state.db = fake
+    try:
+        yield fake
+    finally:
+        app.state.db = prev
 
 
 def _auth_with_fake_db() -> FakeDb:
@@ -108,20 +122,21 @@ def test_extract_requires_both_files():
 
 
 def test_extract_two_pdfs():
-    pdf = _mini_pdf_bytes()
-    r = _client().post(
-        "/api/life/extract",
-        files=[
-            ("cis", ("cis.pdf", pdf, "application/pdf")),
-            ("bond", ("bond.pdf", pdf, "application/pdf")),
-        ],
-        data={"insurer_id": "lic"},
-    )
-    assert r.status_code == 200, r.text
-    payload = r.json()["data"]
-    assert payload["lifeSchedule"]["sumAssuredInr"] == 5_000_000
-    assert payload["meta"]["insurerId"] == "lic"
-    assert len(payload.get("fieldConfidenceUi") or []) >= 1
+    with _life_extract_test_db():
+        pdf = _mini_pdf_bytes()
+        r = _client().post(
+            "/api/life/extract",
+            files=[
+                ("cis", ("cis.pdf", pdf, "application/pdf")),
+                ("bond", ("bond.pdf", pdf, "application/pdf")),
+            ],
+            data={"insurer_id": "lic"},
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()["data"]
+        assert payload["lifeSchedule"]["sumAssuredInr"] == 5_000_000
+        assert payload["meta"]["insurerId"] == "lic"
+        assert len(payload.get("fieldConfidenceUi") or []) >= 1
 
 
 def test_save_schedule_requires_auth():
@@ -159,21 +174,109 @@ def test_extract_llm_fallback_refines_and_sets_meta(monkeypatch):
         }
 
     monkeypatch.setattr(life_router, "llm_refine_life_schedule", _fake_llm)
-    r = _client().post(
-        "/api/life/extract",
-        files=[
-            ("cis", ("cis.pdf", pdf, "application/pdf")),
-            ("bond", ("bond.pdf", pdf, "application/pdf")),
-        ],
-        data={"insurer_id": "lic"},
-    )
+    with _life_extract_test_db():
+        r = _client().post(
+            "/api/life/extract",
+            files=[
+                ("cis", ("cis.pdf", pdf, "application/pdf")),
+                ("bond", ("bond.pdf", pdf, "application/pdf")),
+            ],
+            data={"insurer_id": "lic"},
+        )
+        assert r.status_code == 200, r.text
+        payload = r.json()["data"]
+        assert payload["lifeSchedule"]["sumAssuredInr"] == 7_500_000
+        assert payload["lifeSchedule"]["productName"] == "Refined Plan"
+        assert "critical_illness" in (payload["lifeSchedule"].get("detectedRiders") or [])
+        assert payload["meta"]["llmRefinement"] is True
+        assert payload["meta"]["llmModel"] == "test-model"
+
+
+def test_extract_rejects_resume_pdf(monkeypatch):
+    spy = MagicMock()
+    monkeypatch.setattr(life_router, "extract_life_schedule", spy)
+
+    cis = resume_pdf()
+    bond = mini_borderline_life_pdf()
+
+    with _life_extract_test_db() as fake:
+        r = _client().post(
+            "/api/life/extract",
+            files=[
+                ("cis", ("cis.pdf", cis, "application/pdf")),
+                ("bond", ("bond.pdf", bond, "application/pdf")),
+            ],
+            data={"insurer_id": "lic"},
+        )
+
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert isinstance(detail, dict)
+    assert detail.get("error") == "not_insurance_document"
+    assert detail.get("detected_type_hint") == "resume"
+
+    rejects = [
+        row
+        for row in fake.parse_attempts.docs
+        if row.get("preflight_outcome") == "reject"
+    ]
+    assert any(row.get("detected_type_hint") == "resume" for row in rejects)
+
+    spy.assert_not_called()
+
+
+def test_extract_logs_borderline_to_parse_attempts(monkeypatch):
+    traced = MagicMock(wraps=real_extract_life_schedule)
+    monkeypatch.setattr(life_router, "extract_life_schedule", traced)
+
+    pdf = mini_borderline_life_pdf()
+    with _life_extract_test_db() as fake:
+        r = _client().post(
+            "/api/life/extract",
+            files=[
+                ("cis", ("cis.pdf", pdf, "application/pdf")),
+                ("bond", ("bond.pdf", pdf, "application/pdf")),
+            ],
+            data={"insurer_id": "lic"},
+        )
+
     assert r.status_code == 200, r.text
-    payload = r.json()["data"]
-    assert payload["lifeSchedule"]["sumAssuredInr"] == 7_500_000
-    assert payload["lifeSchedule"]["productName"] == "Refined Plan"
-    assert "critical_illness" in (payload["lifeSchedule"].get("detectedRiders") or [])
-    assert payload["meta"]["llmRefinement"] is True
-    assert payload["meta"]["llmModel"] == "test-model"
+    assert any(row.get("preflight_outcome") == "borderline" for row in fake.parse_attempts.docs)
+    traced.assert_called()
+
+
+def test_extract_structural_reject_on_encrypted_pdf(monkeypatch):
+    monkeypatch.setattr(rate_limit_module, "_DISABLED", False)
+
+    before = dict(rate_limit_module.rate_limit_metrics_snapshot())
+
+    cis = encrypted_minimal_life_pdf()
+    bond = mini_borderline_life_pdf()
+
+    with _life_extract_test_db() as fake:
+        r = _client().post(
+            "/api/life/extract",
+            files=[
+                ("cis", ("cis.pdf", cis, "application/pdf")),
+                ("bond", ("bond.pdf", bond, "application/pdf")),
+            ],
+            data={"insurer_id": "lic"},
+        )
+
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert detail.get("error") == "encrypted_pdf"
+
+    after = dict(rate_limit_module.rate_limit_metrics_snapshot())
+    assert after["memory_checks"] == before["memory_checks"]
+    assert after["redis_checks"] == before["redis_checks"]
+
+    structural = [
+        row
+        for row in fake.parse_attempts.docs
+        if row.get("preflight_outcome") == "structural_reject"
+    ]
+    assert any(row.get("preflight_error") == "encrypted_pdf" for row in structural)
 
 
 def test_post_life_audit_returns_valid_audit_for_user_schedule():
