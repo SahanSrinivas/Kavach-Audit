@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
@@ -17,8 +18,10 @@ if str(BACKEND_DIR) not in sys.path:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from auth import get_current_user, verify_csrf  # noqa: E402
 from routers import life_router  # noqa: E402
 from server import app  # noqa: E402
+from tests._fake_mongo import FakeDb  # noqa: E402
 
 
 def _mini_pdf_bytes() -> bytes:
@@ -37,6 +40,28 @@ def _mini_pdf_bytes() -> bytes:
 
 def _client() -> TestClient:
     return TestClient(app)
+
+
+def _auth_with_fake_db() -> FakeDb:
+    fake = FakeDb()
+    fake.users.docs.append(
+        {
+            "id": "u1",
+            "user_id": "u1",
+            "mobile": "9999999999",
+            "age": 35,
+            "gender": "male",
+            "dependents": 2,
+            "annual_income": 1_200_000,
+            "city_tier": "tier-1",
+            "liabilities_inr": 2_500_000,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    app.state.db = fake
+    app.dependency_overrides[get_current_user] = lambda: {"user_id": "u1", "mobile": "9999999999"}
+    app.dependency_overrides[verify_csrf] = lambda: None
+    return fake
 
 
 def test_life_stats_index_ok():
@@ -126,3 +151,64 @@ def test_extract_llm_fallback_refines_and_sets_meta(monkeypatch):
     assert "critical_illness" in (payload["lifeSchedule"].get("detectedRiders") or [])
     assert payload["meta"]["llmRefinement"] is True
     assert payload["meta"]["llmModel"] == "test-model"
+
+
+def test_post_life_audit_returns_valid_audit_for_user_schedule():
+    fake = _auth_with_fake_db()
+    fake.life_schedules.docs.append(
+        {
+            "_id": "sched-1",
+            "user_id": "u1",
+            "created_at": "2026-05-05T10:00:00+00:00",
+            "life_schedule": {
+                "productName": "HDFC Life Click 2 Protect",
+                "sumAssuredInr": 12_000_000,
+                "policyTermYears": 30,
+                "premiumPaymentTermYears": 25,
+                "modalPremiumInr": 18_000,
+                "premiumFrequency": "Annual",
+                "nomineeSectionLikely": True,
+                "freeLookDays": 30,
+                "detectedRiders": ["critical_illness", "personal_accident"],
+                "insurerName": "HDFC Life",
+            },
+        }
+    )
+    r = _client().post("/api/life/audit")
+    app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    audit = r.json()["data"]["audit"]
+    assert audit["user_id"] == "u1"
+    assert set(audit["scores"].keys()) == {"coverage", "cost", "claim_readiness", "gap"}
+    assert audit["data_version"] == "life-2026.05"
+    assert len(fake.life_audits.docs) == 1
+
+
+def test_post_life_audit_404_when_no_schedule():
+    _auth_with_fake_db()
+    r = _client().post("/api/life/audit")
+    app.dependency_overrides.clear()
+    assert r.status_code == 404
+    assert r.json()["detail"] == "life_schedule_not_found"
+
+
+def test_get_life_audit_latest_returns_most_recent():
+    fake = _auth_with_fake_db()
+    fake.life_audits.docs.extend(
+        [
+            {"user_id": "u1", "created_at": "2026-05-05T10:00:00+00:00", "scores": {"gap": 70}},
+            {"user_id": "u1", "created_at": "2026-05-06T10:00:00+00:00", "scores": {"gap": 90}},
+        ]
+    )
+    r = _client().get("/api/life/audit/latest")
+    app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["audit"]["scores"]["gap"] == 90
+
+
+def test_get_life_audit_latest_404_when_none():
+    _auth_with_fake_db()
+    r = _client().get("/api/life/audit/latest")
+    app.dependency_overrides.clear()
+    assert r.status_code == 404
+    assert r.json()["detail"] == "life_audit_not_found"

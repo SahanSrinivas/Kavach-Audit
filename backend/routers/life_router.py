@@ -15,6 +15,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth import get_current_user, verify_csrf
+from services.life.audit.runner import run_life_audit
+from services.life.audit.types import LifeScheduleInput, LifeUserProfile
 from services.life.extract_schedule import extract_life_schedule
 from services.life.llm_schedule import (
     llm_metrics_snapshot,
@@ -250,3 +252,60 @@ async def get_life_schedule(
         "createdAt": row.get("created_at"),
     }
     return _ok(data)
+
+
+@router.post("/audit", dependencies=[Depends(verify_csrf)])
+async def generate_life_audit(
+    request: Request,
+    current: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Run life audit from the user's latest saved life schedule."""
+    db = request.app.state.db
+    schedule_row = await db.life_schedules.find_one(
+        {"user_id": current["user_id"]},
+        sort=[("created_at", -1)],
+    )
+    if not schedule_row:
+        raise HTTPException(status_code=404, detail="life_schedule_not_found")
+
+    user_doc = await db.users.find_one({"id": current["user_id"]}, {"_id": 0})
+    if not user_doc:
+        user_doc = await db.users.find_one({"user_id": current["user_id"]}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="user_not_found")
+
+    profile = LifeUserProfile.from_dict(user_doc)
+    schedule = LifeScheduleInput.from_dict(
+        schedule_row.get("life_schedule") or {},
+        schedule_id=str(schedule_row.get("_id") or ""),
+    )
+    life_policy_count = await db.life_schedules.count_documents({"user_id": current["user_id"]})
+    has_pa_anywhere = (await db.policies.count_documents({"user_id": current["user_id"], "type": {"$in": ["pa", "personal_accident"]}})) > 0
+
+    result = run_life_audit(
+        profile,
+        schedule,
+        life_policy_count=life_policy_count,
+        has_personal_accident_anywhere=has_pa_anywhere,
+    )
+    audit_doc = result.to_dict()
+    audit_doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.life_audits.insert_one(dict(audit_doc))
+    return _ok({"audit": audit_doc})
+
+
+@router.get("/audit/latest")
+async def get_latest_life_audit(
+    request: Request,
+    current: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Return most recent saved life audit for the logged-in user."""
+    db = request.app.state.db
+    row = await db.life_audits.find_one(
+        {"user_id": current["user_id"]},
+        {"_id": 0},
+        sort=[("created_at", -1)],
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="life_audit_not_found")
+    return _ok({"audit": row})
