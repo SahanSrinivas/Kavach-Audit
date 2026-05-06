@@ -10,6 +10,7 @@ import Stage0Hook from "./pages/Stage0Hook";
 import Landing from "./pages/Landing";
 import LifeAuditStart from "./pages/LifeAuditStart";
 import LifeSchedule from "./pages/LifeSchedule";
+import LifeRecommendations from "./pages/LifeRecommendations";
 import Stage1Identity from "./pages/Stage1Identity";
 import Stage2Family from "./pages/Stage2Family";
 import Stage3Money from "./pages/Stage3Money";
@@ -34,6 +35,14 @@ export default function App() {
           <Route path="/audit/start" element={<Stage0Hook />} />
           <Route path="/audit/life/start" element={<LifeAuditStart />} />
           <Route path="/audit/life/schedule" element={<LifeSchedule />} />
+          <Route
+            path="/audit/life/recommendations"
+            element={
+              <ProtectedRoute>
+                <LifeRecommendations />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Audit flow */}
           <Route path="/audit/identity" element={<Stage1Identity />} />

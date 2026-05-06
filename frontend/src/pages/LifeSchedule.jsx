@@ -269,12 +269,19 @@ export default function LifeSchedule() {
         <div className="mt-10 flex flex-wrap gap-3">
           <button
             type="button"
+            onClick={() => navigate("/audit/life/recommendations")}
+            className="inline-flex h-11 items-center rounded-xl bg-[#0B2545] px-5 text-sm font-semibold text-white"
+          >
+            See recommendations
+          </button>
+          <button
+            type="button"
             onClick={() => navigate("/audit/life/start")}
             className="inline-flex h-11 items-center rounded-xl border border-[#E1E5EB] bg-white px-5 text-sm font-semibold text-[#0B2545]"
           >
             Upload different PDFs
           </button>
-          <Link to="/" className="inline-flex h-11 items-center rounded-xl bg-[#0B2545] px-5 text-sm font-semibold text-white">
+          <Link to="/" className="inline-flex h-11 items-center rounded-xl border border-[#E1E5EB] bg-white px-5 text-sm font-semibold text-[#0B2545]">
             Back to home
           </Link>
         </div>
